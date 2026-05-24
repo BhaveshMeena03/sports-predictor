@@ -1,0 +1,2072 @@
+{
+  "run_id": "20260519-110013",
+  "leagues": [
+    "premier_league",
+    "la_liga",
+    "serie_a",
+    "bundesliga"
+  ],
+  "matches_per_league": 30,
+  "pipelines": [
+    "naive",
+    "elo"
+  ],
+  "total_matches_scored": 60,
+  "duration_seconds": 3.6,
+  "summary": {
+    "naive": {
+      "n": 60,
+      "accuracy": 35.0,
+      "brier": 0.2222,
+      "log_loss": 1.0986
+    },
+    "elo": {
+      "n": 60,
+      "accuracy": 36.7,
+      "brier": 0.2259,
+      "log_loss": 1.1193
+    }
+  },
+  "fixtures": [
+    {
+      "league": "premier_league",
+      "date": "2024-08-24",
+      "home": "Crystal Palace",
+      "away": "West Ham",
+      "score": "0-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4203,
+            0.241,
+            0.3387
+          ],
+          "brier": 0.224,
+          "log_loss": 1.0826,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-24",
+      "home": "Aston Villa",
+      "away": "Arsenal",
+      "score": "0-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4115,
+            0.2455,
+            0.343
+          ],
+          "brier": 0.2204,
+          "log_loss": 1.07,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-25",
+      "home": "Bournemouth",
+      "away": "Newcastle",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4394,
+            0.2313,
+            0.3293
+          ],
+          "brier": 0.2975,
+          "log_loss": 1.464,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-25",
+      "home": "Wolves",
+      "away": "Chelsea",
+      "score": "2-6",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4129,
+            0.2448,
+            0.3423
+          ],
+          "brier": 0.221,
+          "log_loss": 1.0721,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-25",
+      "home": "Liverpool",
+      "away": "Brentford",
+      "score": "2-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.5247,
+            0.1901,
+            0.2851
+          ],
+          "brier": 0.1144,
+          "log_loss": 0.6449,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "Arsenal",
+      "away": "Brighton",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4663,
+            0.218,
+            0.3157
+          ],
+          "brier": 0.3095,
+          "log_loss": 1.5233,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "Everton",
+      "away": "Bournemouth",
+      "score": "2-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.3649,
+            0.2699,
+            0.3652
+          ],
+          "brier": 0.203,
+          "log_loss": 1.0073,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "Leicester",
+      "away": "Aston Villa",
+      "score": "1-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.448,
+            0.227,
+            0.325
+          ],
+          "brier": 0.236,
+          "log_loss": 1.1239,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "Brentford",
+      "away": "Southampton",
+      "score": "3-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.51,
+            0.197,
+            0.2929
+          ],
+          "brier": 0.1216,
+          "log_loss": 0.6733,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "Ipswich",
+      "away": "Fulham",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.3785,
+            0.2628,
+            0.3588
+          ],
+          "brier": 0.2718,
+          "log_loss": 1.3364,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "Nottingham Forest",
+      "away": "Wolves",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.5885,
+            0.1612,
+            0.2504
+          ],
+          "brier": 0.3709,
+          "log_loss": 1.8251,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-08-31",
+      "home": "West Ham",
+      "away": "Manchester City",
+      "score": "1-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.3918,
+            0.2557,
+            0.3524
+          ],
+          "brier": 0.2128,
+          "log_loss": 1.043,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-09-01",
+      "home": "Newcastle",
+      "away": "Tottenham",
+      "score": "2-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4463,
+            0.2279,
+            0.3258
+          ],
+          "brier": 0.1549,
+          "log_loss": 0.8068,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-09-01",
+      "home": "Chelsea",
+      "away": "Crystal Palace",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.5517,
+            0.1777,
+            0.2706
+          ],
+          "brier": 0.3513,
+          "log_loss": 1.7277,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "premier_league",
+      "date": "2024-09-01",
+      "home": "Manchester United",
+      "away": "Liverpool",
+      "score": "0-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.3809,
+            0.2615,
+            0.3576
+          ],
+          "brier": 0.2087,
+          "log_loss": 1.0283,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-24",
+      "home": "Getafe",
+      "away": "Rayo Vallecano",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4468,
+            0.2276,
+            0.3256
+          ],
+          "brier": 0.3007,
+          "log_loss": 1.4802,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-25",
+      "home": "Real Madrid",
+      "away": "Valladolid",
+      "score": "3-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4525,
+            0.2248,
+            0.3227
+          ],
+          "brier": 0.1515,
+          "log_loss": 0.793,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-25",
+      "home": "Leganes",
+      "away": "Las Palmas",
+      "score": "2-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4677,
+            0.2173,
+            0.315
+          ],
+          "brier": 0.1433,
+          "log_loss": 0.7599,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-25",
+      "home": "Alaves",
+      "away": "Real Betis",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4525,
+            0.2248,
+            0.3227
+          ],
+          "brier": 0.3033,
+          "log_loss": 1.4925,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-25",
+      "home": "Atletico Madrid",
+      "away": "Girona",
+      "score": "3-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4621,
+            0.2201,
+            0.3178
+          ],
+          "brier": 0.1463,
+          "log_loss": 0.772,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-26",
+      "home": "Villarreal",
+      "away": "Celta Vigo",
+      "score": "4-3",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4477,
+            0.2272,
+            0.3251
+          ],
+          "brier": 0.1541,
+          "log_loss": 0.8036,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-27",
+      "home": "Mallorca",
+      "away": "Sevilla",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4622,
+            0.22,
+            0.3178
+          ],
+          "brier": 0.3077,
+          "log_loss": 1.5141,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-27",
+      "home": "Rayo Vallecano",
+      "away": "Barcelona",
+      "score": "1-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4526,
+            0.2247,
+            0.3227
+          ],
+          "brier": 0.238,
+          "log_loss": 1.131,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-28",
+      "home": "Athletic Club",
+      "away": "Valencia",
+      "score": "1-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4829,
+            0.2099,
+            0.3071
+          ],
+          "brier": 0.1353,
+          "log_loss": 0.7279,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-28",
+      "home": "Valladolid",
+      "away": "Leganes",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4372,
+            0.2324,
+            0.3304
+          ],
+          "brier": 0.2965,
+          "log_loss": 1.4593,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-28",
+      "home": "Atletico Madrid",
+      "away": "Espanyol",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.5175,
+            0.1935,
+            0.289
+          ],
+          "brier": 0.3339,
+          "log_loss": 1.6425,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-28",
+      "home": "Real Sociedad",
+      "away": "Alaves",
+      "score": "1-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4773,
+            0.2127,
+            0.3101
+          ],
+          "brier": 0.2497,
+          "log_loss": 1.1709,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-29",
+      "home": "Girona",
+      "away": "Osasuna",
+      "score": "4-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4336,
+            0.2342,
+            0.3322
+          ],
+          "brier": 0.162,
+          "log_loss": 0.8356,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-29",
+      "home": "Las Palmas",
+      "away": "Real Madrid",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4221,
+            0.2401,
+            0.3378
+          ],
+          "brier": 0.2899,
+          "log_loss": 1.4267,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "la_liga",
+      "date": "2024-08-31",
+      "home": "Barcelona",
+      "away": "Valladolid",
+      "score": "7-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.5219,
+            0.1914,
+            0.2866
+          ],
+          "brier": 0.1158,
+          "log_loss": 0.6503,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-25",
+      "home": "Torino",
+      "away": "Atalanta",
+      "score": "2-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4311,
+            0.2355,
+            0.3334
+          ],
+          "brier": 0.1634,
+          "log_loss": 0.8414,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-25",
+      "home": "Napoli",
+      "away": "Bologna",
+      "score": "3-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4432,
+            0.2294,
+            0.3274
+          ],
+          "brier": 0.1566,
+          "log_loss": 0.8137,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-25",
+      "home": "AS Roma",
+      "away": "Empoli",
+      "score": "1-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4677,
+            0.2173,
+            0.315
+          ],
+          "brier": 0.2451,
+          "log_loss": 1.1552,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-26",
+      "home": "Cagliari",
+      "away": "Como",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4811,
+            0.2108,
+            0.3081
+          ],
+          "brier": 0.3164,
+          "log_loss": 1.5568,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-26",
+      "home": "Hellas Verona",
+      "away": "Juventus",
+      "score": "0-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4621,
+            0.2201,
+            0.3178
+          ],
+          "brier": 0.2425,
+          "log_loss": 1.1463,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-30",
+      "home": "Venezia",
+      "away": "Torino",
+      "score": "0-1",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4308,
+            0.2357,
+            0.3336
+          ],
+          "brier": 0.2284,
+          "log_loss": 1.0978,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-30",
+      "home": "Inter",
+      "away": "Atalanta",
+      "score": "4-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4615,
+            0.2204,
+            0.3182
+          ],
+          "brier": 0.1466,
+          "log_loss": 0.7733,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-31",
+      "home": "Bologna",
+      "away": "Empoli",
+      "score": "1-1",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4213,
+            0.2405,
+            0.3382
+          ],
+          "brier": 0.2896,
+          "log_loss": 1.425,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-31",
+      "home": "Lecce",
+      "away": "Cagliari",
+      "score": "1-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4174,
+            0.2424,
+            0.3401
+          ],
+          "brier": 0.1713,
+          "log_loss": 0.8737,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-31",
+      "home": "Lazio",
+      "away": "AC Milan",
+      "score": "2-2",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4832,
+            0.2098,
+            0.307
+          ],
+          "brier": 0.3174,
+          "log_loss": 1.5616,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-08-31",
+      "home": "Napoli",
+      "away": "Parma",
+      "score": "2-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4534,
+            0.2244,
+            0.3223
+          ],
+          "brier": 0.151,
+          "log_loss": 0.791,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-09-01",
+      "home": "Genoa",
+      "away": "Hellas Verona",
+      "score": "0-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4875,
+            0.2077,
+            0.3048
+          ],
+          "brier": 0.2547,
+          "log_loss": 1.1881,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-09-01",
+      "home": "Fiorentina",
+      "away": "Monza",
+      "score": "2-2",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.477,
+            0.2128,
+            0.3102
+          ],
+          "brier": 0.3145,
+          "log_loss": 1.5474,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-09-01",
+      "home": "Udinese",
+      "away": "Como",
+      "score": "1-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4963,
+            0.2035,
+            0.3002
+          ],
+          "brier": 0.1284,
+          "log_loss": 0.7006,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "serie_a",
+      "date": "2024-09-01",
+      "home": "Juventus",
+      "away": "AS Roma",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.531,
+            0.1872,
+            0.2818
+          ],
+          "brier": 0.3407,
+          "log_loss": 1.6756,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-08-31",
+      "home": "Bayer Leverkusen",
+      "away": "RB Leipzig",
+      "score": "2-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4677,
+            0.2173,
+            0.315
+          ],
+          "brier": 0.2451,
+          "log_loss": 1.1552,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-01",
+      "home": "1. FC Heidenheim",
+      "away": "FC Augsburg",
+      "score": "4-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4921,
+            0.2055,
+            0.3024
+          ],
+          "brier": 0.1305,
+          "log_loss": 0.7091,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-01",
+      "home": "Bayern M\u00fcnchen",
+      "away": "SC Freiburg",
+      "score": "2-0",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4615,
+            0.2204,
+            0.3181
+          ],
+          "brier": 0.1466,
+          "log_loss": 0.7733,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-13",
+      "home": "Borussia Dortmund",
+      "away": "1. FC Heidenheim",
+      "score": "4-2",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4343,
+            0.2339,
+            0.3318
+          ],
+          "brier": 0.1616,
+          "log_loss": 0.834,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-14",
+      "home": "SC Freiburg",
+      "away": "VfL Bochum",
+      "score": "2-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.502,
+            0.2008,
+            0.2972
+          ],
+          "brier": 0.1256,
+          "log_loss": 0.6892,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-14",
+      "home": "VfL Wolfsburg",
+      "away": "Eintracht Frankfurt",
+      "score": "1-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4701,
+            0.2162,
+            0.3138
+          ],
+          "brier": 0.2462,
+          "log_loss": 1.159,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-14",
+      "home": "Borussia M\u00f6nchengladbach",
+      "away": "VfB Stuttgart",
+      "score": "1-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4925,
+            0.2053,
+            0.3022
+          ],
+          "brier": 0.2572,
+          "log_loss": 1.1967,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-14",
+      "home": "1899 Hoffenheim",
+      "away": "Bayer Leverkusen",
+      "score": "1-4",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4547,
+            0.2237,
+            0.3216
+          ],
+          "brier": 0.239,
+          "log_loss": 1.1344,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-14",
+      "home": "RB Leipzig",
+      "away": "Union Berlin",
+      "score": "0-0",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4784,
+            0.2121,
+            0.3095
+          ],
+          "brier": 0.3151,
+          "log_loss": 1.5507,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-14",
+      "home": "Holstein Kiel",
+      "away": "Bayern M\u00fcnchen",
+      "score": "1-6",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.3866,
+            0.2585,
+            0.3549
+          ],
+          "brier": 0.2108,
+          "log_loss": 1.0359,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-15",
+      "home": "FC Augsburg",
+      "away": "FC St. Pauli",
+      "score": "3-1",
+      "actual": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": true
+        },
+        "elo": {
+          "probs": [
+            0.4763,
+            0.2132,
+            0.3106
+          ],
+          "brier": 0.1387,
+          "log_loss": 0.7417,
+          "correct": true
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-15",
+      "home": "FSV Mainz 05",
+      "away": "Werder Bremen",
+      "score": "1-2",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4612,
+            0.2205,
+            0.3183
+          ],
+          "brier": 0.242,
+          "log_loss": 1.1448,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-20",
+      "home": "FC Augsburg",
+      "away": "FSV Mainz 05",
+      "score": "2-3",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4741,
+            0.2142,
+            0.3117
+          ],
+          "brier": 0.2481,
+          "log_loss": 1.1657,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-21",
+      "home": "Werder Bremen",
+      "away": "Bayern M\u00fcnchen",
+      "score": "0-5",
+      "actual": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4123,
+            0.2451,
+            0.3426
+          ],
+          "brier": 0.2207,
+          "log_loss": 1.0712,
+          "correct": false
+        }
+      }
+    },
+    {
+      "league": "bundesliga",
+      "date": "2024-09-21",
+      "home": "VfL Bochum",
+      "away": "Holstein Kiel",
+      "score": "2-2",
+      "actual": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "preds": {
+        "naive": {
+          "probs": [
+            0.3333,
+            0.3333,
+            0.3333
+          ],
+          "brier": 0.2222,
+          "log_loss": 1.0986,
+          "correct": false
+        },
+        "elo": {
+          "probs": [
+            0.4826,
+            0.2101,
+            0.3073
+          ],
+          "brier": 0.3171,
+          "log_loss": 1.5602,
+          "correct": false
+        }
+      }
+    }
+  ]
+}
