@@ -14,3 +14,7 @@ node_modules/
 .next/
 out/
 build/
+
+# editor / assistant local files
+.claude/
+CLAUDE.md
