@@ -21,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sports Predictor AI",
-    description="AI-powered sports betting analysis using Claude",
+    description="AI-powered sports betting analysis",
     version="1.0.0",
     lifespan=lifespan,
 )

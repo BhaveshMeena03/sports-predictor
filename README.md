@@ -53,7 +53,7 @@ npm install
 npm run dev                 # http://localhost:3000
 ```
 
-See [`HOW_TO_USE.md`](HOW_TO_USE.md) for the full workflow, one-time data setup, and the chat playbook.
+See [`HOW_TO_USE.md`](HOW_TO_USE.md) for the full workflow, one-time data setup, and natural-language query examples.
 
 ## Tech
 

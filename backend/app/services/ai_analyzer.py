@@ -1,7 +1,7 @@
 """
-Claude-powered match analyzer.
+LLM-powered match analyzer.
 
-Uses Anthropic tool use to GUARANTEE structured JSON output. The model is forced
+Uses the model's tool-use feature to GUARANTEE structured JSON output. The model is forced
 to call our `submit_match_analysis` / `submit_multi_analysis` tools, whose input
 schemas define the exact shape of the response. No more fragile JSON-slicing.
 """

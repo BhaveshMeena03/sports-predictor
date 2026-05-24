@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-# override=True so empty env vars (e.g. ANTHROPIC_API_KEY="" set by Claude Desktop on macOS)
-# don't silently shadow values in .env
+# override=True so an empty ANTHROPIC_API_KEY exported elsewhere in the shell
+# doesn't silently shadow the value in .env
 load_dotenv(override=True)
 
 class Settings:

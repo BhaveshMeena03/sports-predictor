@@ -30,13 +30,14 @@ curl -X POST "localhost:8000/api/poisson/fit/premier_league" # fit Dixon-Coles p
 
 > ⚠️ `.env` holds API keys (Anthropic, API-Football, Odds API). Keep it out of git.
 > The backend uses `load_dotenv(override=True)` so an empty shell `ANTHROPIC_API_KEY`
-> (set by Claude Desktop on macOS) won't shadow it.
+> exported by another app won't shadow it.
 
 ---
 
-## 2. The chat playbook (just ask Claude)
+## 2. Natural-language query guide
 
-You don't need to remember endpoints — say these and Claude runs the right call:
+You don't need to remember endpoints — the `/quick-analyze` endpoint accepts plain-language
+queries like these and routes them to the right call:
 
 | You say… | What happens | Endpoint |
 |---|---|---|
