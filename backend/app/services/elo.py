@@ -141,8 +141,15 @@ class EloRatings:
         away_team: str,
         home_goals: int,
         away_goals: int,
+        k_scale: float = 1.0,
     ) -> dict:
-        """Update both team ratings after a finished match."""
+        """Update both team ratings after a finished match.
+
+        k_scale: match-importance multiplier (standard Elo practice):
+          0.33 = friendlies (rotation/experimentation — weak signal)
+          1.0  = qualifiers / Nations League / club league (default)
+          2.5  = World Cup finals matches (maximum signal)
+        """
         ratings = await self.get_many([home_team, away_team])
         home_r = ratings[home_team]
         away_r = ratings[away_team]
@@ -154,7 +161,7 @@ class EloRatings:
             actual_home = 0.0
         else:
             actual_home = 0.5
-        k = self.k_for_margin(abs(home_goals - away_goals))
+        k = self.k_for_margin(abs(home_goals - away_goals)) * k_scale
         delta = k * (actual_home - expected_home)
         new_home = home_r + delta
         new_away = away_r - delta

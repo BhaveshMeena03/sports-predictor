@@ -24,14 +24,19 @@ async def refresh_models() -> dict:
     """Re-ingest international results and refit any saved Dixon-Coles models."""
     summary = {"started": datetime.now(timezone.utc).isoformat(), "steps": {}}
 
-    # 1) Refresh international Elo from latest results
+    # 1) Ingest new World Cup results incrementally (NEVER reset here — a
+    #    daily reset would wipe tournament learning; /worldcup/rebuild exists
+    #    for explicit full rebuilds and replays the WC log afterwards).
     try:
-        from app.services.worldcup import ingest_real_results
-        r = await ingest_real_results(reset_to_seeds=True)
-        summary["steps"]["international_ingest"] = r.get("matches_ingested", "n/a")
+        from app.services.worldcup import daily_update
+        r = await daily_update(days_back=2)
+        summary["steps"]["wc_daily_update"] = {
+            "new_results": len(r.get("new_results", [])),
+            "scorecard": r.get("model_scorecard"),
+        }
     except Exception as e:
-        log.warning("scheduled intl ingest failed: %s", e)
-        summary["steps"]["international_ingest"] = f"error: {e}"
+        log.warning("scheduled WC daily update failed: %s", e)
+        summary["steps"]["wc_daily_update"] = f"error: {e}"
 
     # 2) Refit Dixon-Coles for leagues that already have a saved model
     try:
@@ -67,6 +72,15 @@ async def refresh_models() -> dict:
     except Exception as e:
         log.warning("scheduled DC refit step failed: %s", e)
         summary["steps"]["dixon_coles_refit"] = f"error: {e}"
+
+    # 3) Club leagues (PL / La Liga): ingest any finished matches (no-op off-season)
+    try:
+        from app.services.club_service import daily_update_clubs
+        r = await daily_update_clubs(days_back=2)
+        summary["steps"]["clubs_daily_update"] = {k: len(v) for k, v in r.items()}
+    except Exception as e:
+        log.warning("scheduled clubs update failed: %s", e)
+        summary["steps"]["clubs_daily_update"] = f"error: {e}"
 
     summary["finished"] = datetime.now(timezone.utc).isoformat()
     _last_run["refresh_models"] = summary

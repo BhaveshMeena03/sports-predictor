@@ -11,7 +11,10 @@ class Settings:
 
     # AI
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    AI_MODEL: str = "claude-haiku-4-5-20251001"  # cheap + fast for analysis
+    # Fable 5 for WC analysis — sharper reasoning, less hallucination risk on
+    # situations like the Columbus-Crew-standings disaster. Costs more per call
+    # but worth it for high-stakes match analysis.
+    AI_MODEL: str = os.getenv("AI_MODEL", "claude-fable-5")
 
     # Sports Data APIs
     API_FOOTBALL_KEY: str = os.getenv("API_FOOTBALL_KEY", "")

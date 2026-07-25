@@ -1,13 +1,14 @@
 import logging
 
 import aiosqlite
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from app.models.schemas import (
     MatchAnalysisRequest, MultiBetRequest, BetRecord,
     QuickAnalysisRequest, FixturesRequest
 )
 from app.core.config import settings
 from app.core.database import DB_PATH
+from app.core.security import llm_limit, public_limit, require_admin
 from app.services.ai_analyzer import ai_analyzer
 from app.services.football_service import football_service, LEAGUE_IDS
 from app.services.odds_service import odds_service
@@ -20,7 +21,14 @@ from app.services.poisson import load_model as load_poisson_model
 
 log = logging.getLogger(__name__)
 
-router = APIRouter()
+# Baseline per-IP rate limit on EVERY route. Individual routes layer on
+# `require_admin` (mutating/destructive) and `llm_limit` (spends model credits).
+router = APIRouter(dependencies=[Depends(public_limit)])
+
+# Endpoints that mutate state, rebuild models, or run paid backtests.
+ADMIN = [Depends(require_admin)]
+# Endpoints that call the LLM analyst: per-IP AND global caps bound the spend.
+PAID = [Depends(llm_limit)]
 
 
 @router.get("/health")
@@ -54,7 +62,7 @@ async def scheduler_status():
     return status()
 
 
-@router.post("/scheduler/run-now")
+@router.post("/scheduler/run-now", dependencies=ADMIN)
 async def scheduler_run_now():
     """Manually trigger the daily model-refresh job (re-ingest intl + refit DC)."""
     from app.services.scheduler import refresh_models
@@ -121,7 +129,7 @@ async def _log_prediction(req: MatchAnalysisRequest, analysis: dict, odds_used: 
         return None
 
 
-@router.post("/analyze")
+@router.post("/analyze", dependencies=PAID)
 async def analyze_match(req: MatchAnalysisRequest):
     match_data = {
         "sport": req.sport,
@@ -235,7 +243,7 @@ async def analyze_match(req: MatchAnalysisRequest):
 
 # ─── Quick Analysis (Natural Language) ──────────────────
 
-@router.post("/quick-analyze")
+@router.post("/quick-analyze", dependencies=PAID)
 async def quick_analyze(req: QuickAnalysisRequest):
     match_data = {
         "sport": "multi",
@@ -324,7 +332,7 @@ async def _kelly_stake(win_prob: float, decimal_odds: float, bankroll: float,
     }
 
 
-@router.post("/analyze-multi")
+@router.post("/analyze-multi", dependencies=PAID)
 async def analyze_multi_bet(req: MultiBetRequest):
     legs_data = [leg.model_dump() for leg in req.legs]
 
@@ -513,7 +521,7 @@ async def get_ensemble_weights(sport: str):
             "defaults": DEFAULT_WEIGHTS.get(sport, {})}
 
 
-@router.put("/ensemble/weights/{sport}")
+@router.put("/ensemble/weights/{sport}", dependencies=ADMIN)
 async def update_ensemble_weights(sport: str, weights_json: str, shrinkage: float = 0.0):
     """Update per-sport ensemble weights. Pass weights_json as a JSON string,
     e.g. '{"elo": 0.5, "poisson": 0.4, "llm": 0.1}'. Components don't need to
@@ -529,7 +537,7 @@ async def update_ensemble_weights(sport: str, weights_json: str, shrinkage: floa
 
 # ─── Dixon-Coles fit (one-shot for a league) ───────────
 
-@router.post("/poisson/fit/{league_key}")
+@router.post("/poisson/fit/{league_key}", dependencies=ADMIN)
 async def fit_poisson(league_key: str, season: int = None):
     """Fit Dixon-Coles on the requested league's full season and save the model.
 
@@ -568,7 +576,7 @@ async def fit_poisson(league_key: str, season: int = None):
 
 # ─── Backtest ──────────────────────────────────────────
 
-@router.post("/historical/download")
+@router.post("/historical/download", dependencies=ADMIN)
 async def historical_download(leagues: str = None, seasons: str = None):
     """Download football-data.co.uk CSVs (results + closing odds) into SQLite.
 
@@ -580,7 +588,7 @@ async def historical_download(leagues: str = None, seasons: str = None):
     return await download_all(leagues=lg, seasons=sn)
 
 
-@router.post("/historical/backtest")
+@router.post("/historical/backtest", dependencies=ADMIN)
 async def historical_backtest(
     league: str = "premier_league",
     seasons: str = None,
@@ -599,7 +607,7 @@ async def historical_backtest(
     )
 
 
-@router.post("/backtest")
+@router.post("/backtest", dependencies=ADMIN)
 async def backtest(
     leagues: str = "premier_league",
     pipelines: str = "elo,naive",
@@ -629,7 +637,7 @@ async def backtest(
 
 # ─── World Cup ─────────────────────────────────────────
 
-@router.post("/worldcup/bootstrap")
+@router.post("/worldcup/bootstrap", dependencies=ADMIN)
 async def worldcup_bootstrap(overwrite: bool = False):
     """Seed Elo ratings for the 48 World Cup national teams.
 
@@ -659,13 +667,121 @@ async def worldcup_predict(home: str, away: str, neutral: bool = True):
     }
 
 
-@router.post("/worldcup/ingest")
+@router.post("/worldcup/ingest", dependencies=ADMIN)
 async def worldcup_ingest(reset_to_seeds: bool = True):
     """Pull real international results (WC2022, Euro2024, Nations League, Copa,
     friendlies) from API-Football and update national-team Elo chronologically.
     This replaces hand-guessed seeds with data-driven ratings."""
     from app.services.worldcup import ingest_real_results
     return await ingest_real_results(reset_to_seeds=reset_to_seeds)
+
+
+@router.post("/worldcup/rebuild", dependencies=ADMIN)
+async def worldcup_rebuild():
+    """Full correct rebuild of international Elo: seeds → 2022-24 competitive
+    (K=1.0) → pre-WC friendlies at ⅓ weight → logged WC results at 2.5x weight."""
+    from app.services.worldcup import rebuild_base_ratings
+    return await rebuild_base_ratings()
+
+
+# ─── Champions League ───────────────────────────────────
+
+@router.post("/cl/harvest", dependencies=ADMIN)
+async def cl_harvest(start: str = "2025-09-01", end: str = "2026-06-05",
+                     season: str = "2025-26"):
+    """Fetch a full CL season's results from ESPN (Tue/Wed/Thu + final dates)."""
+    from app.services.champions_league import harvest_season
+    return await harvest_season(start, end, season)
+
+
+@router.post("/cl/backtest", dependencies=ADMIN)
+async def cl_backtest(season: str = "2025-26"):
+    """Walk-forward backtest on the harvested season: seed cross-league Elo
+    from domestic ratings, predict every match with only prior info, score."""
+    from app.services.champions_league import backtest_last_season
+    return await backtest_last_season(season)
+
+
+@router.get("/cl/predict")
+async def cl_predict(home: str, away: str, neutral: bool = False):
+    """CL fixture prediction on the walk-forward-corrected European ratings."""
+    from app.services.champions_league import predict_cl
+    return await predict_cl(home, away, neutral=neutral)
+
+
+# ─── Club leagues (Premier League, La Liga) ─────────────
+
+@router.post("/clubs/refresh", dependencies=ADMIN)
+async def clubs_refresh(seasons: str = "2526"):
+    """Download latest football-data season CSVs for PL + La Liga and rebuild
+    each league's Elo from all stored seasons (chronological replay)."""
+    from app.services.historical_data import download_league_season
+    from app.services.club_service import rebuild_league_elo, LEAGUES
+    out = {"downloads": [], "rebuilds": []}
+    for lg in LEAGUES:
+        for sn in [s.strip() for s in seasons.split(",") if s.strip()]:
+            try:
+                out["downloads"].append(await download_league_season(lg, sn))
+            except Exception as e:
+                out["downloads"].append({"league": lg, "season": sn, "error": str(e)})
+        out["rebuilds"].append(await rebuild_league_elo(lg))
+    return out
+
+
+@router.post("/clubs/backtest", dependencies=ADMIN)
+async def clubs_backtest(league: str, season: str = "2526"):
+    """CL-style walk-forward backtest of a domestic league season, with a
+    Pinnacle-closing-odds market benchmark on the same matches."""
+    from app.services.club_service import backtest_league_season, LEAGUES
+    if league not in LEAGUES:
+        raise HTTPException(400, f"league must be one of {list(LEAGUES)}")
+    return await backtest_league_season(league, season)
+
+
+@router.get("/clubs/predict")
+async def clubs_predict(league: str, home: str, away: str):
+    """Draw-aware v2 prediction for a PL / La Liga fixture.
+    league: premier_league | la_liga. Home advantage applied."""
+    from app.services.club_service import predict_club, LEAGUES
+    if league not in LEAGUES:
+        raise HTTPException(400, f"league must be one of {list(LEAGUES)}")
+    return await predict_club(league, home, away)
+
+
+@router.post("/clubs/daily-update", dependencies=ADMIN)
+async def clubs_daily_update(days_back: int = 3):
+    """In-season: ingest finished PL/La Liga results (ESPN, free), score the
+    model, update league Elo. Run daily once the 2026-27 season starts."""
+    from app.services.club_service import daily_update_clubs
+    return await daily_update_clubs(days_back=days_back)
+
+
+@router.get("/worldcup/predict2")
+async def worldcup_predict2(home: str, away: str, neutral: bool = True):
+    """v2 draw-aware prediction: Elo->Poisson goals bridge + calibration layer
+    fitted on our own logged WC predictions. CAN pick the draw (v1 cannot)."""
+    from app.services import calibration_layer
+    from app.services.intl_poisson import predict_v2
+    await calibration_layer.load()
+    out = await predict_v2(home, away, neutral=neutral)
+    out["calibration"] = calibration_layer.current("international")
+    return out
+
+
+@router.post("/worldcup/calibrate", dependencies=ADMIN)
+async def worldcup_calibrate():
+    """(Re)fit the probability calibration layer on wc_match_log."""
+    from app.services import calibration_layer
+    return await calibration_layer.fit()
+
+
+@router.post("/worldcup/daily-update", dependencies=ADMIN)
+async def worldcup_daily_update(days_back: int = 3):
+    """The daily ritual: ingest new WC results (ESPN, free + no quota), score the
+    model's pre-match predictions (live calibration), update Elo at WC weight,
+    and preview today/tomorrow fixtures with fresh probabilities."""
+    from app.services.worldcup import daily_update
+    return await daily_update(days_back=days_back)
 
 
 @router.get("/worldcup/ratings")
@@ -694,6 +810,35 @@ async def worldcup_simulate(n_sims: int = 10000, seed: int = None, groups_json: 
 
 
 # ─── Calibration (predictions vs settled bets) ─────────
+
+@router.get("/calibration/reliability")
+async def calibration_reliability(league: str = "premier_league", season: str = "2526"):
+    """Reliability curve + Brier decomposition for one league-season.
+
+    This is the evidence behind the calibration claim: does a stated 60%
+    actually happen ~60% of the time, and how does that compare to the closing
+    line on the same matches. Accuracy is deliberately not the headline — no
+    1X2 model picks draws, so ~27% of matches are unwinnable on that metric."""
+    from app.services.calibration_report import league_report
+    from app.services.club_service import LEAGUES
+    if league not in LEAGUES:
+        raise HTTPException(400, f"Unknown league. Valid: {sorted(LEAGUES)}")
+    return await league_report(league, season)
+
+
+@router.post("/calibration/fit", dependencies=ADMIN)
+async def calibration_fit(season: str = "2526"):
+    """(Re)fit the per-sport calibration alphas.
+
+    Club alphas come from the walk-forward backtest (no live club log yet);
+    the international alpha comes from logged World Cup predictions."""
+    from app.services import calibration_layer
+    from app.services.calibration_report import fit_all_clubs
+    clubs = await fit_all_clubs(season)
+    intl = await calibration_layer.fit("international", "wc_match_log")
+    return {"clubs": clubs, "international": intl,
+            "active": await calibration_layer.load()}
+
 
 @router.get("/calibration")
 async def calibration():
@@ -790,7 +935,7 @@ def _row_to_bet(row: aiosqlite.Row) -> dict:
     }
 
 
-@router.post("/bets")
+@router.post("/bets", dependencies=ADMIN)
 async def record_bet(bet: BetRecord):
     potential_payout = round(bet.odds * bet.stake, 2)
     async with aiosqlite.connect(DB_PATH) as db:
@@ -817,7 +962,7 @@ async def get_bets():
     return {"bets": [_row_to_bet(r) for r in rows]}
 
 
-@router.delete("/bets")
+@router.delete("/bets", dependencies=ADMIN)
 async def clear_bets():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM bets")
@@ -825,7 +970,7 @@ async def clear_bets():
     return {"message": "All bets cleared"}
 
 
-@router.put("/bets/{bet_id}/settle")
+@router.put("/bets/{bet_id}/settle", dependencies=ADMIN)
 async def settle_bet(bet_id: int, result: str, actual_score: str = None):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
