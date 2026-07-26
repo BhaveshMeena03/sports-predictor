@@ -137,6 +137,12 @@ class TestRoutesAreGuarded:
         ("post", "/api/backtest"),
         ("post", "/api/clubs/daily-update"),
         ("delete", "/api/bets"),
+        # Personal financial data — the bets ledger and everything derived
+        # from it (P/L, stakes, ROI) is the owner's, not the public's.
+        ("get", "/api/bets"),
+        ("get", "/api/bets/summary"),
+        ("get", "/api/calibration"),
+        ("get", "/api/dashboard"),
     ])
     def test_admin_endpoints_refuse_anonymous_remote_callers(self, client, method, path):
         r = getattr(client, method)(path)

@@ -46,7 +46,7 @@ async def quota():
     }
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", dependencies=ADMIN)
 async def dashboard():
     """One-stop proof + health surface: model registry, live calibration, recent backtests."""
     from app.services.dashboard import build
@@ -901,7 +901,7 @@ async def calibration_fit(season: str = "2526"):
             "active": await calibration_layer.load()}
 
 
-@router.get("/calibration")
+@router.get("/calibration", dependencies=ADMIN)
 async def calibration():
     """How well-calibrated are the AI's confidence scores?
 
@@ -1017,7 +1017,7 @@ async def record_bet(bet: BetRecord):
     return {"message": "Bet recorded", "bet": _row_to_bet(row)}
 
 
-@router.get("/bets")
+@router.get("/bets", dependencies=ADMIN)
 async def get_bets():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
@@ -1061,7 +1061,7 @@ async def settle_bet(bet_id: int, result: str, actual_score: str = None):
     return {"message": "Bet settled", "bet": _row_to_bet(row)}
 
 
-@router.get("/bets/summary")
+@router.get("/bets/summary", dependencies=ADMIN)
 async def bet_summary():
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row

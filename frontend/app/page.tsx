@@ -251,7 +251,6 @@ export default function Landing() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4">
         <ToolLink href="/fixtures" title="Fixtures & probabilities" desc="Upcoming matches with model probabilities and derived markets" />
         <ToolLink href="/analyze" title="Match analyzer" desc="Full ensemble + AI write-up for any fixture" />
-        <ToolLink href="/tracker" title="Prediction tracker" desc="Every logged prediction, scored" />
       </section>
     </div>
   );
