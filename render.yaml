@@ -7,7 +7,12 @@ services:
     name: sports-predictor
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci && npm run build
+    # rm -rf: Render reuses the build dir between deploys, and a stale
+    # .next/out produced an index.html referencing a chunk hash that was
+    # never published — the page rendered but React never hydrated, so no
+    # data ever loaded. --webpack because the Turbopack build is what
+    # emitted the inconsistent runtime chunk.
+    buildCommand: rm -rf .next out && npm ci && npx next build --webpack
     staticPublishPath: out
     envVars:
       - key: NEXT_PUBLIC_API_BASE
