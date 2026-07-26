@@ -57,7 +57,21 @@ export default function MultiPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ legs, stake }),
       });
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({} as any));
+      if (!resp.ok) {
+        // Without this guard a 429 crashed the render: the page reads
+        // result.analysis.* and an error body has no .analysis.
+        setResult({
+          error: resp.status === 429
+            ? "The analyzer is at capacity right now — try again in a minute."
+            : data?.detail || `Analysis failed (HTTP ${resp.status}).`,
+        });
+        return;
+      }
+      if (data.analysis?.error) {
+        setResult({ error: data.analysis.error });
+        return;
+      }
       setResult(data);
     } catch {
       setResult({ error: "Failed to analyze" });

@@ -185,7 +185,12 @@ async def analyze_match(req: MatchAnalysisRequest,
         try:
             odds = await odds_service.get_odds(req.league)
             for o in odds:
-                if (req.home_team.lower() in o.get("home_team", "").lower() or
+                # BOTH teams must match. With OR, "Arsenal vs Chelsea" grabbed
+                # the odds of Arsenal's next fixture against someone else
+                # entirely — the LLM analyst spotted "Coventry City at 15.05"
+                # inside an Arsenal-Chelsea analysis and flagged it as corrupt
+                # data, which is exactly what it was.
+                if (req.home_team.lower() in o.get("home_team", "").lower() and
                     req.away_team.lower() in o.get("away_team", "").lower()):
                     match_data["odds"] = o.get("avg_odds")
                     # Track the odds we'd be betting at (home side)

@@ -93,8 +93,25 @@ function AnalyzeContent() {
           extra_context: context,
         }),
       });
+      if (!resp.ok) {
+        // 429 = rate limit / daily budget; anything else surfaces its detail.
+        const body = await resp.json().catch(() => ({} as any));
+        setResult({
+          error: resp.status === 429
+            ? "The analyzer is at capacity right now — try again in a minute."
+            : body?.detail || `Analysis failed (HTTP ${resp.status}).`,
+        });
+        return;
+      }
       const data = await resp.json();
-      setResult(data.analysis);
+      // API shape: { match, ensemble, base_models, llm_analysis }.
+      // The old `data.analysis` field no longer exists — reading it rendered
+      // NOTHING silently, which is how this page shipped broken.
+      setResult({
+        match: data.match,
+        ...data.llm_analysis,
+        ensemble: data.ensemble,
+      });
     } catch (err) {
       setResult({ error: "Failed to analyze. Is the backend running?" });
     } finally {
@@ -203,6 +220,31 @@ function AnalyzeContent() {
               </div>
               <ConfidenceBadge value={result.confidence || 0} />
             </div>
+
+            {/* Ensemble probabilities — the actual model output */}
+            {result.ensemble?.p_home != null && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                    Ensemble probabilities
+                  </h3>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Elo + Poisson + AI, blended &amp; calibrated
+                  </span>
+                </div>
+                <div className="flex h-3 rounded-full overflow-hidden">
+                  <div style={{ width: `${result.ensemble.p_home * 100}%`, background: "var(--series-model)" }} />
+                  <div style={{ width: `${result.ensemble.p_draw * 100}%`, background: "var(--text-muted)", opacity: 0.55 }} />
+                  <div style={{ width: `${result.ensemble.p_away * 100}%`, background: "var(--series-market)" }} />
+                </div>
+                <div className="flex justify-between text-xs mt-1"
+                  style={{ color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                  <span>home {Math.round(result.ensemble.p_home * 100)}%</span>
+                  <span>draw {Math.round(result.ensemble.p_draw * 100)}%</span>
+                  <span>away {Math.round(result.ensemble.p_away * 100)}%</span>
+                </div>
+              </div>
+            )}
 
             {/* Predicted Score */}
             {result.predicted_score && (
