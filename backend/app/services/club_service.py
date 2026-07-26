@@ -20,7 +20,7 @@ import aiosqlite
 import httpx
 from datetime import datetime, timedelta, timezone
 from app.core.config import settings
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 from app.services.elo import EloRatings
 from app.services import calibration_layer
 from app.services.intl_poisson import predict_v2
@@ -120,7 +120,7 @@ def norm_espn(name: str) -> str:
 
 
 async def _ensure_tables():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS club_match_log (
                 league TEXT NOT NULL,
@@ -149,7 +149,7 @@ async def rebuild_league_elo(league_key: str) -> dict:
     seasons chronologically (oldest first, home advantage handled by Elo)."""
     cfg = LEAGUES[league_key]
     sport = cfg["sport"]
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("DELETE FROM elo_ratings WHERE sport=?", (sport,))
         await db.commit()
         db.row_factory = aiosqlite.Row
@@ -196,7 +196,7 @@ async def backtest_league_season(league_key: str, season: str = "2526",
     sport = cfg["sport"]
     await calibration_layer.load()
     await _ensure_tables()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("DELETE FROM elo_ratings WHERE sport=?", (sport,))
         await db.commit()
         db.row_factory = aiosqlite.Row
@@ -331,7 +331,7 @@ async def fetch_espn_league(league_key: str, date_str: str) -> list[dict]:
 
 
 async def known_elo_teams(sport: str) -> set[str]:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         rows = await (await db.execute(
             "SELECT team FROM elo_ratings WHERE sport=?", (sport,))).fetchall()
     return {r[0] for r in rows}
@@ -390,7 +390,7 @@ async def daily_update_clubs(days_back: int = 3) -> dict:
             for m in day:
                 if not m["completed"] or m["home_score"] is None:
                     continue
-                async with aiosqlite.connect(DB_PATH) as db:
+                async with db_connect(DB_PATH) as db:
                     cur = await db.execute(
                         "SELECT 1 FROM club_match_log WHERE league=? AND date=? AND home=? AND away=?",
                         (league_key, m["date"], m["home"], m["away"]))
@@ -413,7 +413,7 @@ async def daily_update_clubs(days_back: int = 3) -> dict:
                 await elo.update_after_match(m["home"], m["away"],
                                              m["home_score"], m["away_score"])
                 raw = p.get("raw", probs)
-                async with aiosqlite.connect(DB_PATH) as db:
+                async with db_connect(DB_PATH) as db:
                     await db.execute(
                         """INSERT OR IGNORE INTO club_match_log
                            (league,date,home,away,home_goals,away_goals,

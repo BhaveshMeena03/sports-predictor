@@ -19,7 +19,7 @@ import aiosqlite
 import httpx
 from datetime import date, timedelta
 from app.core.config import settings
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 from app.services.elo import EloRatings
 from app.services import calibration_layer
 from app.services.intl_poisson import predict_v2
@@ -48,7 +48,7 @@ def norm_cl(n: str) -> str: return CL_NAME_MAP.get(n, n)
 
 
 async def _ensure_tables():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS cl_results (
                 season TEXT NOT NULL,
@@ -93,7 +93,7 @@ async def harvest_season(start: str = "2025-09-01", end: str = "2026-06-05",
                     hs = home.get("score"); as_ = away.get("score")
                     if hs in (None, "") or as_ in (None, ""):
                         continue
-                    async with aiosqlite.connect(DB_PATH) as db:
+                    async with db_connect(DB_PATH) as db:
                         await db.execute(
                             "INSERT OR IGNORE INTO cl_results VALUES (?,?,?,?,?,?)",
                             (season, (ev.get("date") or "")[:10],
@@ -109,7 +109,7 @@ async def harvest_season(start: str = "2025-09-01", end: str = "2026-06-05",
 async def seed_ratings() -> dict:
     """Wipe club_europe and seed every big-5 team from its domestic Elo +
     league offset. Non-big-5 CL teams default when first seen."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("DELETE FROM elo_ratings WHERE sport=?", (CL_SPORT,))
         await db.commit()
     euro = EloRatings(CL_SPORT)
@@ -136,7 +136,7 @@ async def backtest_last_season(season: str = "2025-26") -> dict:
     await _ensure_tables()
     await calibration_layer.load()
     await seed_ratings()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute(
             "SELECT * FROM cl_results WHERE season=? ORDER BY date", (season,))).fetchall()

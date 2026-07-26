@@ -49,3 +49,38 @@ class TestResolution:
         fx = [{"league": "la_liga", "league_label": "La Liga", "date": "2026-08-20",
                "home": "Atletico Madrid", "away": "Malaga"}]
         assert resolve_fixture("atlético game prediction", fx) is not None
+
+
+class TestNicknameSafety:
+    """Generic tokens must not hijack resolution."""
+
+    FIXTURES = [
+        {"league": "premier_league", "league_label": "Premier League",
+         "date": "2026-08-21", "home": "Manchester City", "away": "Brentford"},
+        {"league": "premier_league", "league_label": "Premier League",
+         "date": "2026-08-22", "home": "Coventry City", "away": "Leeds United"},
+        {"league": "premier_league", "league_label": "Premier League",
+         "date": "2026-08-20", "home": "Manchester United", "away": "Fulham"},
+        {"league": "premier_league", "league_label": "Premier League",
+         "date": "2026-08-23", "home": "Newcastle United", "away": "Everton"},
+    ]
+
+    def test_coventry_city_does_not_become_man_city(self):
+        r = resolve_fixture("can coventry city stay up this season?", self.FIXTURES)
+        assert r and r["home"] == "Coventry City"
+
+    def test_full_name_beats_shared_last_word(self):
+        """'Newcastle United' must not lose the tie to Manchester United just
+        because Man Utd's fixture is a day earlier."""
+        r = resolve_fixture("newcastle united prediction please", self.FIXTURES)
+        assert r and r["home"] == "Newcastle United"
+
+    def test_man_city_nickname_still_works(self):
+        r = resolve_fixture("man city this weekend?", self.FIXTURES)
+        assert r and r["home"] == "Manchester City"
+
+    def test_nickname_needs_word_boundary(self):
+        """'inter' must not fire inside unrelated words."""
+        fx = [{"league": "serie_a", "league_label": "Serie A",
+               "date": "2026-08-23", "home": "Inter Milan", "away": "Como"}]
+        assert resolve_fixture("my printer is broken", fx) is None

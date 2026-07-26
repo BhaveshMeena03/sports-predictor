@@ -18,7 +18,7 @@ Pipeline:
 
 import math
 import aiosqlite
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 from app.services.elo import EloRatings, HOME_ADVANTAGE
 from app.services import calibration_layer
 
@@ -34,7 +34,7 @@ def _pois(k: int, lam: float) -> float:
 async def _tournament_baseline(log_table: str = "wc_match_log",
                                fallback: float = FALLBACK_TOTAL,
                                where: str = "", params: tuple = ()) -> float:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         row = await (await db.execute(
             f"SELECT AVG(home_goals + away_goals), COUNT(*) FROM {log_table} {where}",
             params)).fetchone()
@@ -47,7 +47,7 @@ async def _team_gf_ga(team: str, log_table: str = "wc_match_log",
                       recent_n: int = 0) -> tuple[float, float, int]:
     """Team's goals for/against per game in the given log (0,0,0 if unseen).
     recent_n > 0 restricts to the team's most recent N matches (club form)."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         q = (f"SELECT home,away,home_goals,away_goals FROM {log_table} "
              f"WHERE home=? OR away=? ORDER BY date DESC")

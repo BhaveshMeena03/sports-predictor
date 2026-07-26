@@ -16,7 +16,7 @@ import io
 import logging
 import httpx
 import aiosqlite
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ DEFAULT_SEASONS = ["2425", "2324", "2223"]
 
 
 async def _ensure_table() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS historical_matches (
                 league TEXT NOT NULL,
@@ -106,7 +106,7 @@ async def download_league_season(league_key: str, season: str) -> dict:
         ))
 
     await _ensure_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executemany("""
             INSERT INTO historical_matches
               (league, season, date, home_team, away_team, home_goals, away_goals, result,
@@ -156,7 +156,7 @@ async def get_matches(
     if seasons:
         q += f" AND season IN ({','.join('?' * len(seasons))})"
         params.extend(seasons)
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute(q, params)).fetchall()
     matches = [dict(r) for r in rows]

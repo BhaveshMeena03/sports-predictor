@@ -184,7 +184,7 @@ async def predict(home: str, away: str, neutral: bool = True) -> dict:
 
 import aiosqlite
 from datetime import datetime, timedelta, timezone
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 HOST_NATIONS = {"Mexico", "USA", "United States", "Canada"}
 K_WORLD_CUP = 2.5
@@ -226,7 +226,7 @@ PRE_WC_FRIENDLIES = [
 
 
 async def _ensure_wc_tables():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS wc_match_log (
                 date TEXT NOT NULL,
@@ -259,7 +259,7 @@ async def rebuild_base_ratings() -> dict:
     out["friendlies_at_third_weight"] = n
     # Replay any WC results already logged (idempotent rebuild mid-tournament)
     await _ensure_wc_tables()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute(
             "SELECT * FROM wc_match_log ORDER BY date")).fetchall()
@@ -313,7 +313,7 @@ async def daily_update(days_back: int = 3) -> dict:
         for m in day:
             if not m["completed"] or m["home_score"] is None:
                 continue
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with db_connect(DB_PATH) as db:
                 cur = await db.execute(
                     "SELECT 1 FROM wc_match_log WHERE date=? AND home=? AND away=?",
                     (m["date"], m["home"], m["away"]))
@@ -334,7 +334,7 @@ async def daily_update(days_back: int = 3) -> dict:
                 m["home"], m["away"], m["home_score"], m["away_score"],
                 k_scale=K_WORLD_CUP)
 
-            async with aiosqlite.connect(DB_PATH) as db:
+            async with db_connect(DB_PATH) as db:
                 await db.execute(
                     """INSERT OR IGNORE INTO wc_match_log
                        (date, home, away, home_goals, away_goals,
@@ -376,7 +376,7 @@ async def daily_update(days_back: int = 3) -> dict:
                 continue
 
     # Running model scorecard
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         row = await (await db.execute(
             """SELECT COUNT(*) n, SUM(correct) c, AVG(brier) b

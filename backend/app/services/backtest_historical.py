@@ -44,8 +44,8 @@ def _result_to_vec(result: str) -> list[float]:
 
 async def _reset_hist_elo():
     import aiosqlite
-    from app.core.database import DB_PATH
-    async with aiosqlite.connect(DB_PATH) as db:
+    from app.core.database import connect as db_connect, DB_PATH
+    async with db_connect(DB_PATH) as db:
         await db.execute("CREATE TABLE IF NOT EXISTS elo_ratings ("
                          "sport TEXT, team TEXT, rating REAL, matches INTEGER, updated_at TEXT, "
                          "PRIMARY KEY (sport, team))")

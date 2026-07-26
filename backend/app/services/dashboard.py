@@ -14,7 +14,7 @@ import logging
 import math
 import os
 import aiosqlite
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 from app.services.backtest import BACKTEST_DIR
 
 log = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ async def _table_count(db, table: str, where: str = "", params: tuple = ()) -> i
 
 
 async def system_status() -> dict:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         # Elo coverage per sport
         elo_by_sport = {}
@@ -67,7 +67,7 @@ async def system_status() -> dict:
 
 async def live_calibration() -> dict:
     """Confidence buckets + Brier from settled bets joined to logged predictions."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         try:
             rows = await (await db.execute("""

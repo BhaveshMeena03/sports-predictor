@@ -1,5 +1,6 @@
 import aiosqlite
 import os
+from contextlib import asynccontextmanager
 
 # DATA_DIR points at the persistent volume in deployment (see Dockerfile).
 # Unset locally -> the repo-root sports_predictor.db, exactly as before.
@@ -9,16 +10,32 @@ import os
 _default_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DB_PATH = os.path.join(os.getenv("DATA_DIR", _default_dir), "sports_predictor.db")
 
-async def get_db():
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    try:
+@asynccontextmanager
+async def connect(path: str | None = None):
+    """Open a connection with sane concurrency behaviour.
+
+    Every open sets busy_timeout: the scheduler and request handlers write
+    concurrently on the live server, and SQLite's default is to fail a
+    contended write INSTANTLY with "database is locked" instead of waiting.
+    Takes the caller's path so tests can monkeypatch a module's DB_PATH.
+    """
+    async with aiosqlite.connect(path or DB_PATH) as db:
+        await db.execute("PRAGMA busy_timeout=5000")
         yield db
-    finally:
-        await db.close()
+
+
+async def get_db():
+    async with connect() as db:
+        db.row_factory = aiosqlite.Row
+        yield db
 
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with connect() as db:
+        # WAL is persistent (a property of the DB file, set once): readers
+        # stop blocking the writer and vice versa, which "delete" mode does
+        # on every single write. NORMAL sync is the standard WAL pairing.
+        await db.execute("PRAGMA journal_mode=WAL")
+        await db.execute("PRAGMA synchronous=NORMAL")
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS predictions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

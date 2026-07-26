@@ -28,7 +28,7 @@ import time
 from datetime import datetime
 
 from app.core.config import settings
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 from app.services.elo import EloRatings, ingest_season_results
 from app.services.football_service import football_service, LEAGUE_IDS
 from app.services.ai_analyzer import ai_analyzer
@@ -206,7 +206,7 @@ async def _reset_elo_for_sport(sport: str) -> None:
     """Wipe Elo table for a sport so backtest starts from a clean slate
     (no leakage from prior runs)."""
     import aiosqlite
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("CREATE TABLE IF NOT EXISTS elo_ratings ("
                          "sport TEXT, team TEXT, rating REAL, matches INTEGER, updated_at TEXT, "
                          "PRIMARY KEY (sport, team))")

@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ ALLOWED_LOG_TABLES = {"wc_match_log", "club_match_log", "cl_results"}
 
 
 async def _ensure_table() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS calibration_params (
                 sport      TEXT PRIMARY KEY,
@@ -83,7 +83,7 @@ def current(sport: str | None = None) -> dict:
 async def load() -> dict:
     """Warm the in-process cache from the calibration_params table."""
     await _ensure_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute(
             "SELECT sport, alpha, n FROM calibration_params")).fetchall()
@@ -98,7 +98,7 @@ async def store(sport: str, alpha: float, n: int,
                 brier_cal: float | None = None) -> None:
     """Persist a fitted alpha and refresh the cache."""
     await _ensure_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("""
             INSERT INTO calibration_params
               (sport, alpha, n, brier_raw, brier_cal, fitted_at)
@@ -148,6 +148,10 @@ async def fit(sport: str = DEFAULT_SPORT, log_table: str = "wc_match_log",
     """
     if log_table not in ALLOWED_LOG_TABLES:
         raise ValueError(f"log_table must be one of {sorted(ALLOWED_LOG_TABLES)}")
+    if league and log_table != "club_match_log":
+        # Only the club log has a league column; on the others this would be
+        # a runtime SQL error at 5am in the scheduler instead of a clear one.
+        raise ValueError("league filter is only valid with club_match_log")
     await _ensure_table()
     # Fit on the RAW (pre-calibration) vector where the log records it.
     # Fitting on served probabilities composes with the alpha already applied
@@ -156,7 +160,7 @@ async def fit(sport: str = DEFAULT_SPORT, log_table: str = "wc_match_log",
             else "p_home AS ph, p_draw AS pd, p_away AS pa")
     where = ("WHERE p_home_raw IS NOT NULL" if use_raw else
              "WHERE p_home IS NOT NULL") + (" AND league=?" if league else "")
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute(
             f"SELECT home_goals, away_goals, {cols} "  # noqa: S608

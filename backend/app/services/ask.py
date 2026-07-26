@@ -15,6 +15,7 @@ no LLM call, no cost, and the user picks.
 
 import asyncio
 import logging
+import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
@@ -26,11 +27,14 @@ from app.services.club_service import LEAGUES, fetch_espn_league, predict_club
 log = logging.getLogger(__name__)
 
 # Colloquial names the containment heuristic won't catch on its own.
+# Deliberately NO bare "city" or "united": half the league ends in one of
+# those, so "Can Coventry City win?" would inject Manchester City into the
+# match text and resolve to the wrong fixture entirely.
 NICKNAMES = {
     "spurs": "Tottenham Hotspur",
     "man u": "Manchester United", "man utd": "Manchester United",
-    "man united": "Manchester United", "united": "Manchester United",
-    "man city": "Manchester City", "city": "Manchester City",
+    "man united": "Manchester United",
+    "man city": "Manchester City",
     "gunners": "Arsenal", "barca": "Barcelona", "atleti": "Atletico Madrid",
     "psg": "Paris Saint-Germain", "inter": "Inter Milan", "juve": "Juventus",
     "bayern": "Bayern Munich", "dortmund": "Borussia Dortmund",
@@ -70,6 +74,7 @@ async def upcoming_fixtures(days: int = 30) -> list[dict]:
     """
     now = datetime.now(timezone.utc)
     if (_fixture_cache["data"] is not None
+            and _fixture_cache.get("days", 0) >= days
             and (now - _fixture_cache["at"]).total_seconds() < _CACHE_TTL_S):
         return _fixture_cache["data"]
 
@@ -99,7 +104,7 @@ async def upcoming_fixtures(days: int = 30) -> list[dict]:
                         "league_label": LEAGUES[league_key]["label"],
                         "date": m["date"], "home": m["home"], "away": m["away"]})
     out.sort(key=lambda m: m["date"])
-    _fixture_cache.update(data=out, at=now)
+    _fixture_cache.update(data=out, at=now, days=days)
     return out
 
 
@@ -111,7 +116,9 @@ def resolve_fixture(question: str, fixtures: list[dict]) -> dict | None:
     """
     q = _norm(question)
     for nick, full in NICKNAMES.items():
-        if nick in q:
+        # Word-boundary match, not substring: "inter" must not fire inside
+        # "printer" or "internazionale", "juve" not inside "juventud".
+        if re.search(rf"\b{re.escape(nick)}\b", q):
             q += " " + _norm(full)
 
     # 1. Fixtures whose team names appear in the question.
@@ -119,10 +126,18 @@ def resolve_fixture(question: str, fixtures: list[dict]) -> dict | None:
         score = 0
         for team in (m["home"], m["away"]):
             t = _norm(team)
-            # full-name containment, or the distinctive last word ("Arsenal",
-            # "Madrid" is ambiguous — require len > 4 to skip "city"-style noise)
             last = t.split()[-1]
-            if t in q or (len(last) > 4 and last in q):
+            first = t.split()[0]
+            if t in q:
+                # Full name outranks a shared first/last word by 2:1 —
+                # otherwise "Newcastle United" (full match) could tie with
+                # Manchester United (last-word "united") and lose the
+                # tiebreak to whichever fixture is earlier.
+                score += 2
+            elif any(len(w) > 4 and re.search(rf"\b{re.escape(w)}\b", q)
+                     for w in {first, last}):
+                # Distinctive single word either end: "atletico", "hotspur".
+                # >4 chars skips the "city"/"real" class of shared tokens.
                 score += 1
         return score
 
@@ -174,6 +189,10 @@ async def answer_question(question: str) -> dict:
                      "fixtures — name two teams, or a league plus 'first match'."),
         }
 
+    from app.services.club_service import LEAGUES as _L, known_elo_teams
+    known = await known_elo_teams(_L[fx["league"]]["sport"])
+    unrated = [t for t in (fx["home"], fx["away"]) if t not in known]
+
     pred = await predict_club(fx["league"], fx["home"], fx["away"])
     markets = pred.get("markets", {})
     totals = markets.get("totals", {}).get("2.5", {})
@@ -189,8 +208,15 @@ async def answer_question(question: str) -> dict:
         f"Most likely scorelines: "
         + ", ".join(f"{s['score']} ({s['p']:.0%})" for s in top_scores)
     )
+    if unrated:
+        # Promoted/new sides have no rating history — the model falls back to
+        # a default. Saying so beats quietly implying full confidence.
+        grounding += (f"\nCaveat you MUST mention: {', '.join(unrated)} "
+                      f"is new to this league in our data (promoted), so the "
+                      f"model has no rating history for them yet — treat these "
+                      f"probabilities as less settled than usual.")
 
-    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+    client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY, timeout=30.0)
     msg = await client.messages.create(
         model=settings.AI_MODEL,
         max_tokens=400,

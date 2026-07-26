@@ -108,9 +108,16 @@ Rules:
 
 class AIAnalyzer:
     def __init__(self):
+        # ASYNC client, and the sync one must never come back: these calls run
+        # inside async routes on a single-worker server, so a blocking call
+        # freezes the entire event loop for the duration of the LLM request —
+        # one /analyze user stalls every other request for 5-15s.
+        # timeout: the SDK default is 10 minutes; a hung upstream would hold
+        # the request (and its rate-limit slot) that long.
         self.client = None
         if settings.ANTHROPIC_API_KEY:
-            self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+            self.client = anthropic.AsyncAnthropic(
+                api_key=settings.ANTHROPIC_API_KEY, timeout=60.0)
 
     # ─── Match analysis ───────────────────────────────────────────────
 
@@ -121,7 +128,7 @@ class AIAnalyzer:
         prompt = self._build_analysis_prompt(match_data)
 
         try:
-            message = self.client.messages.create(
+            message = await self.client.messages.create(
                 model=settings.AI_MODEL,
                 max_tokens=2000,
                 tools=[MATCH_ANALYSIS_TOOL],
@@ -159,7 +166,7 @@ COMBINED ODDS (computed for you): {combined_odds:.3f}
 Give per-leg analysis and the overall verdict via the submit_multi_analysis tool."""
 
         try:
-            message = self.client.messages.create(
+            message = await self.client.messages.create(
                 model=settings.AI_MODEL,
                 max_tokens=3000,
                 tools=[MULTI_ANALYSIS_TOOL],

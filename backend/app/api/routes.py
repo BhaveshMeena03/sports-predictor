@@ -7,7 +7,7 @@ from app.models.schemas import (
     QuickAnalysisRequest, FixturesRequest
 )
 from app.core.config import settings
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 from app.core.security import is_owner, llm_daily_budget, llm_limit, public_limit, require_admin
 from app.services.ai_analyzer import ai_analyzer
 from app.services.football_service import football_service, LEAGUE_IDS
@@ -128,7 +128,7 @@ async def _log_prediction(req: MatchAnalysisRequest, analysis: dict, odds_used: 
     traffic: the calibration tracker only aggregates owner rows, so strangers
     can use /analyze without being able to distort the published numbers."""
     try:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             await _ensure_prediction_prob_cols(db)
             ph, pd, pa = (probs or [None, None, None])
             cur = await db.execute(
@@ -305,7 +305,7 @@ async def _calibration_multiplier(confidence: float) -> float:
     band_mid = sum(band) / 2
 
     try:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
             rows = await (await db.execute("""
                 SELECT p.confidence, b.result
@@ -849,7 +849,7 @@ async def trackrecord():
     fills the same way once the 2026-27 season starts. Public, read-only.
     """
     out = {}
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         for key, table, extra in (("world_cup", "wc_match_log", ""),
                                   ("clubs", "club_match_log", ", league")):
@@ -920,7 +920,7 @@ async def calibration():
 
     Joins logged predictions to settled bets (by match name) and bins by confidence.
     After ~20+ settled bets the buckets become meaningful."""
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute("""
             SELECT p.confidence, b.result
@@ -1015,7 +1015,7 @@ def _row_to_bet(row: aiosqlite.Row) -> dict:
 @router.post("/bets", dependencies=ADMIN)
 async def record_bet(bet: BetRecord):
     potential_payout = round(bet.odds * bet.stake, 2)
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await _ensure_match_column(db)
         cur = await db.execute(
@@ -1032,7 +1032,7 @@ async def record_bet(bet: BetRecord):
 
 @router.get("/bets", dependencies=ADMIN)
 async def get_bets():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await _ensure_match_column(db)
         rows = await (await db.execute("SELECT * FROM bets ORDER BY id DESC")).fetchall()
@@ -1041,7 +1041,7 @@ async def get_bets():
 
 @router.delete("/bets", dependencies=ADMIN)
 async def clear_bets():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("DELETE FROM bets")
         await db.commit()
     return {"message": "All bets cleared"}
@@ -1049,7 +1049,7 @@ async def clear_bets():
 
 @router.put("/bets/{bet_id}/settle", dependencies=ADMIN)
 async def settle_bet(bet_id: int, result: str, actual_score: str = None):
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         await _ensure_match_column(db)
         row = await (await db.execute("SELECT * FROM bets WHERE id = ?", (bet_id,))).fetchone()
@@ -1076,7 +1076,7 @@ async def settle_bet(bet_id: int, result: str, actual_score: str = None):
 
 @router.get("/bets/summary", dependencies=ADMIN)
 async def bet_summary():
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         row = await (await db.execute(
             """SELECT

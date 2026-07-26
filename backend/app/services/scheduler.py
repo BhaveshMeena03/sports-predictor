@@ -41,12 +41,12 @@ async def refresh_models() -> dict:
     # 2) Refit Dixon-Coles for leagues that already have a saved model
     try:
         import aiosqlite
-        from app.core.database import DB_PATH
+        from app.core.database import connect as db_connect, DB_PATH
         from app.core.config import settings
         from app.services.poisson import DixonColes, save_model
         from app.services.backtest import fetch_finished_fixtures
 
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             rows = await (await db.execute(
                 "SELECT DISTINCT league, season FROM poisson_models")).fetchall()
         refit = []
@@ -93,7 +93,7 @@ async def refresh_models() -> dict:
         from app.services import calibration_layer
         from app.services.club_service import LEAGUES
         refits = {}
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             for league_key, cfg in LEAGUES.items():
                 n = (await (await db.execute(
                     "SELECT COUNT(*) FROM club_match_log "

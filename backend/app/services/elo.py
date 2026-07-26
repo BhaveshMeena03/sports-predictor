@@ -16,7 +16,7 @@ Persistence: ratings live in SQLite (`elo_ratings` table, auto-created).
 import math
 import logging
 import aiosqlite
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ class EloRatings:
         await db.commit()
 
     async def get(self, team: str) -> float:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             await self._ensure_table(db)
             cur = await db.execute(
                 "SELECT rating FROM elo_ratings WHERE sport=? AND team=?",
@@ -60,7 +60,7 @@ class EloRatings:
         return row[0] if row else DEFAULT_RATING
 
     async def get_many(self, teams: list[str]) -> dict[str, float]:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             await self._ensure_table(db)
             placeholders = ",".join("?" * len(teams))
             cur = await db.execute(
@@ -72,7 +72,7 @@ class EloRatings:
         return {t: existing.get(t.strip(), DEFAULT_RATING) for t in teams}
 
     async def set(self, team: str, rating: float) -> None:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             await self._ensure_table(db)
             await db.execute(
                 """INSERT INTO elo_ratings (sport, team, rating, matches, updated_at)
@@ -177,7 +177,7 @@ class EloRatings:
         }
 
     async def all_ratings(self, limit: int = 50) -> list[dict]:
-        async with aiosqlite.connect(DB_PATH) as db:
+        async with db_connect(DB_PATH) as db:
             await self._ensure_table(db)
             db.row_factory = aiosqlite.Row
             cur = await db.execute(

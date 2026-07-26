@@ -24,7 +24,7 @@ import aiosqlite
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import poisson
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ log = logging.getLogger(__name__)
 # ─── DB persistence ──────────────────────────────────────────────
 
 async def _ensure_table() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS poisson_models (
                 sport TEXT NOT NULL,
@@ -57,7 +57,7 @@ async def save_model(sport: str, league: str, season: int, model: "DixonColes", 
         "home_adv": float(model.home_adv()),
         "rho": float(model.rho()),
     }
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute(
             """INSERT INTO poisson_models (sport, league, season, params_json, n_matches, home_adv, rho)
                VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -72,7 +72,7 @@ async def save_model(sport: str, league: str, season: int, model: "DixonColes", 
 
 async def load_model(sport: str, league: str, season: int) -> "DixonColes | None":
     await _ensure_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         cur = await db.execute(
             "SELECT params_json FROM poisson_models WHERE sport=? AND league=? AND season=?",
             (sport, league, season),

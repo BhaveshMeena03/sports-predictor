@@ -19,7 +19,7 @@ Stored in the `ensemble_weights` table per-sport so we can re-tune over time.
 import json
 import logging
 import aiosqlite
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ log = logging.getLogger(__name__)
 # ─── Persistence ─────────────────────────────────────────────────
 
 async def _ensure_table() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS ensemble_weights (
                 sport TEXT PRIMARY KEY,
@@ -59,7 +59,7 @@ DEFAULT_SHRINKAGE = {"football": 0.10, "nba": 0.10, "nhl": 0.10,
 
 async def get_weights(sport: str) -> tuple[dict[str, float], float]:
     await _ensure_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         cur = await db.execute(
             "SELECT weights_json, shrinkage FROM ensemble_weights WHERE sport=?", (sport,)
         )
@@ -71,7 +71,7 @@ async def get_weights(sport: str) -> tuple[dict[str, float], float]:
 
 async def set_weights(sport: str, weights: dict[str, float], shrinkage: float = 0.0) -> None:
     await _ensure_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute(
             """INSERT INTO ensemble_weights (sport, weights_json, shrinkage)
                VALUES (?, ?, ?)

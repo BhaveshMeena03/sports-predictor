@@ -167,7 +167,7 @@ from datetime import datetime, timezone
 
 import aiosqlite
 
-from app.core.database import DB_PATH
+from app.core.database import connect as db_connect, DB_PATH
 
 # Serialises fits: they DELETE + rebuild elo_ratings per league, so two running
 # at once — even two admin calls — would corrupt the replay.
@@ -175,7 +175,7 @@ _fit_lock = asyncio.Lock()
 
 
 async def _ensure_report_table() -> None:
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("""
             CREATE TABLE IF NOT EXISTS calibration_reports (
                 league      TEXT NOT NULL,
@@ -190,7 +190,7 @@ async def _ensure_report_table() -> None:
 
 async def _store_report(league_key: str, season: str, report: dict) -> None:
     await _ensure_report_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         await db.execute("""
             INSERT INTO calibration_reports (league, season, report, computed_at)
             VALUES (?,?,?,?)
@@ -204,7 +204,7 @@ async def _store_report(league_key: str, season: str, report: dict) -> None:
 async def stored_report(league_key: str, season: str = "2526") -> dict | None:
     """The read path the public endpoint uses. Never computes anything."""
     await _ensure_report_table()
-    async with aiosqlite.connect(DB_PATH) as db:
+    async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         row = await (await db.execute(
             "SELECT report, computed_at FROM calibration_reports "
