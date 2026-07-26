@@ -1,0 +1,14 @@
+# Render Blueprint: the public dashboard as a free static site.
+# The backend stays on Fly (it needs a persistent volume for the live
+# prediction logs); this is just the client bundle, which talks to it
+# directly from the browser.
+services:
+  - type: web
+    name: sports-predictor
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: out
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE
+        value: https://sports-predictor-api.fly.dev/api
