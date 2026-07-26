@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import Card from "../components/Card";
+import { API } from "../utils/api";
 
-const API = "http://localhost:8000/api";
 
 export default function TrackerPage() {
   const [bets, setBets] = useState<any[]>([]);

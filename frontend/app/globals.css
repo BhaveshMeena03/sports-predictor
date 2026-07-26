@@ -13,6 +13,9 @@
   --green-dim: #00c853;
   --red: #ff1744;
   --yellow: #ffea00;
+  /* chart series — validated dark-surface categorical slots (CVD-checked) */
+  --series-model: #3987e5;
+  --series-market: #d95926;
   --text-primary: #e8e8f0;
   --text-secondary: #8888a0;
   --text-muted: #55556a;

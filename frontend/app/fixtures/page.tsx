@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import Card from "../components/Card";
 import { TeamLogo, LeagueLogo } from "../components/TeamLogo";
 import { useRouter } from "next/navigation";
+import { API } from "../utils/api";
 
-const API = "http://localhost:8000/api";
 
 const SPORT_FILTERS = [
   { key: "all", label: "All Sports" },
@@ -139,7 +139,7 @@ export default function FixturesPage() {
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Next 7 days — click odds to add to multi</p>
         </div>
         <button
-          onClick={loadMatches}
+          onClick={() => loadMatches()}
           disabled={loading}
           className="px-4 py-2 rounded-lg text-sm font-bold"
           style={{ background: "var(--cyan)", color: "var(--bg-primary)" }}

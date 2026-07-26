@@ -2,12 +2,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Inline SVG paths (Lucide outlines) — emoji icons read as a hobby project.
+const ICONS: Record<string, string> = {
+  chart: "M3 3v18h18 M7 13l3-3 4 4 5-6",
+  search: "M21 21l-4.3-4.3 M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z",
+  layers: "M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5",
+  calendar: "M8 2v4 M16 2v4 M3 8h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+  list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
+};
+
 const navItems = [
-  { href: "/", label: "Dashboard", icon: "📊" },
-  { href: "/analyze", label: "Analyze Match", icon: "🔍" },
-  { href: "/multi", label: "Multi Builder", icon: "🎯" },
-  { href: "/fixtures", label: "Fixtures", icon: "📅" },
-  { href: "/tracker", label: "Bet Tracker", icon: "💰" },
+  { href: "/", label: "Track Record", icon: "chart" },
+  { href: "/fixtures", label: "Fixtures", icon: "calendar" },
+  { href: "/analyze", label: "Analyze Match", icon: "search" },
+  { href: "/multi", label: "Multi Builder", icon: "layers" },
+  { href: "/tracker", label: "Prediction Log", icon: "list" },
 ];
 
 export default function Sidebar() {
@@ -51,7 +60,13 @@ export default function Sidebar() {
                 borderLeft: isActive ? "3px solid var(--cyan)" : "3px solid transparent",
               }}
             >
-              <span className="text-lg">{item.icon}</span>
+              <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" fill="none"
+                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true">
+                {ICONS[item.icon].split(" M").map((d, i) => (
+                  <path key={i} d={(i ? "M" : "") + d} />
+                ))}
+              </svg>
               {item.label}
             </Link>
           );

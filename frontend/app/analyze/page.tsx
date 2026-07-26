@@ -3,8 +3,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Card from "../components/Card";
 import ConfidenceBadge from "../components/ConfidenceBadge";
+import { API } from "../utils/api";
 
-const API = "http://localhost:8000/api";
 
 const SPORTS = ["football", "nba", "nhl", "cricket"];
 const LEAGUES: Record<string, string[]> = {
