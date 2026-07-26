@@ -133,6 +133,14 @@ async def _ensure_tables():
                 PRIMARY KEY (league, date, home, away)
             );
         """)
+        # Raw (pre-calibration) vector alongside the served one. Refitting
+        # alpha on served probabilities composes with the alpha already in
+        # force and drifts on every refit — live refits must fit on raw.
+        cur = await db.execute("PRAGMA table_info(club_match_log)")
+        cols = {row[1] for row in await cur.fetchall()}
+        for col in ("p_home_raw", "p_draw_raw", "p_away_raw"):
+            if col not in cols:
+                await db.execute(f"ALTER TABLE club_match_log ADD COLUMN {col} REAL")
         await db.commit()
 
 
@@ -404,15 +412,18 @@ async def daily_update_clubs(days_back: int = 3) -> dict:
                 labels = [m["home"], "Draw", m["away"]]
                 await elo.update_after_match(m["home"], m["away"],
                                              m["home_score"], m["away_score"])
+                raw = p.get("raw", probs)
                 async with aiosqlite.connect(DB_PATH) as db:
                     await db.execute(
                         """INSERT OR IGNORE INTO club_match_log
                            (league,date,home,away,home_goals,away_goals,
-                            p_home,p_draw,p_away,picked,correct,brier)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                            p_home,p_draw,p_away,picked,correct,brier,
+                            p_home_raw,p_draw_raw,p_away_raw)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (league_key, m["date"], m["home"], m["away"],
                          m["home_score"], m["away_score"], *probs,
-                         labels[pick_i], 1 if pick_i == idx else 0, round(brier, 4)))
+                         labels[pick_i], 1 if pick_i == idx else 0, round(brier, 4),
+                         *raw))
                     await db.commit()
                 new.append(f'{m["home"]} {m["home_score"]}-{m["away_score"]} {m["away"]}')
         summary[league_key] = new

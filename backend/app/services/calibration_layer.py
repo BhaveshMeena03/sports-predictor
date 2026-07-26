@@ -135,20 +135,33 @@ def fit_alpha(data: list[tuple[list[float], int]]) -> tuple[float, float, float]
     return best, _brier(data, 1.0), _brier(data, best)
 
 
-async def fit(sport: str = DEFAULT_SPORT, log_table: str = "wc_match_log") -> dict:
+async def fit(sport: str = DEFAULT_SPORT, log_table: str = "wc_match_log",
+              league: str | None = None, use_raw: bool = False) -> dict:
     """Fit alpha for one sport from its logged LIVE predictions.
 
     Club leagues have no live log until the season starts, so their alphas come
     from the walk-forward backtest instead — see calibration_report.fit_and_store().
+    Once the season is running, the scheduler calls this with
+    log_table="club_match_log" and a league filter, so live evidence gradually
+    replaces the backtest fit. `league` is parameterised; only the table name
+    needs the allowlist.
     """
     if log_table not in ALLOWED_LOG_TABLES:
         raise ValueError(f"log_table must be one of {sorted(ALLOWED_LOG_TABLES)}")
     await _ensure_table()
+    # Fit on the RAW (pre-calibration) vector where the log records it.
+    # Fitting on served probabilities composes with the alpha already applied
+    # and drifts on every refit — the same failure the backtest fit had.
+    cols = ("p_home_raw AS ph, p_draw_raw AS pd, p_away_raw AS pa" if use_raw
+            else "p_home AS ph, p_draw AS pd, p_away AS pa")
+    where = ("WHERE p_home_raw IS NOT NULL" if use_raw else
+             "WHERE p_home IS NOT NULL") + (" AND league=?" if league else "")
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         rows = await (await db.execute(
-            f"SELECT home_goals, away_goals, p_home, p_draw, p_away "  # noqa: S608
-            f"FROM {log_table} WHERE p_home IS NOT NULL")).fetchall()
+            f"SELECT home_goals, away_goals, {cols} "  # noqa: S608
+            f"FROM {log_table} {where}",
+            (league,) if league else ())).fetchall()
 
     data = []
     for r in rows:
@@ -156,13 +169,16 @@ async def fit(sport: str = DEFAULT_SPORT, log_table: str = "wc_match_log") -> di
             continue
         idx = (0 if r["home_goals"] > r["away_goals"]
                else 2 if r["home_goals"] < r["away_goals"] else 1)
-        data.append(([r["p_home"], r["p_draw"], r["p_away"]], idx))
+        data.append(([r["ph"], r["pd"], r["pa"]], idx))
 
     if len(data) < 30:
-        # Too little signal to fit anything; 1.0 leaves probabilities untouched.
-        await store(sport, 1.0, len(data))
-        return {"sport": sport, "alpha": 1.0, "n": len(data),
-                "note": "too few matches, no adjustment applied"}
+        # Too little signal to fit — and crucially, do NOT store: early in the
+        # season this call may land with a handful of live matches while the
+        # sport still carries a good backtest-fitted alpha. Overwriting that
+        # with a default would throw away the better estimate. An unfitted
+        # sport already defaults to 1.0 in apply().
+        return {"sport": sport, "alpha": None, "n": len(data),
+                "note": "too few matches to fit; existing alpha (if any) kept"}
 
     best, raw, cal = fit_alpha(data)
     await store(sport, best, len(data), round(raw, 5), round(cal, 5))

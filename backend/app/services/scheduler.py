@@ -73,7 +73,7 @@ async def refresh_models() -> dict:
         log.warning("scheduled DC refit step failed: %s", e)
         summary["steps"]["dixon_coles_refit"] = f"error: {e}"
 
-    # 3) Club leagues (PL / La Liga): ingest any finished matches (no-op off-season)
+    # 3) Club leagues: ingest any finished matches (no-op off-season)
     try:
         from app.services.club_service import daily_update_clubs
         r = await daily_update_clubs(days_back=2)
@@ -81,6 +81,33 @@ async def refresh_models() -> dict:
     except Exception as e:
         log.warning("scheduled clubs update failed: %s", e)
         summary["steps"]["clubs_daily_update"] = f"error: {e}"
+
+    # 4) Calibration keeps learning: once a league has enough LIVE scored
+    #    matches, refit its alpha from the live log (raw vectors — fitting on
+    #    served probabilities would compose with the alpha already applied).
+    #    Below the threshold fit() stores nothing, so the backtest-fitted
+    #    alpha keeps serving until live evidence genuinely replaces it.
+    try:
+        import aiosqlite
+        from app.core.database import DB_PATH
+        from app.services import calibration_layer
+        from app.services.club_service import LEAGUES
+        refits = {}
+        async with aiosqlite.connect(DB_PATH) as db:
+            for league_key, cfg in LEAGUES.items():
+                n = (await (await db.execute(
+                    "SELECT COUNT(*) FROM club_match_log "
+                    "WHERE league=? AND p_home_raw IS NOT NULL AND brier IS NOT NULL",
+                    (league_key,))).fetchone())[0]
+                if n >= 40:
+                    res = await calibration_layer.fit(
+                        cfg["sport"], "club_match_log",
+                        league=league_key, use_raw=True)
+                    refits[league_key] = {"n": res["n"], "alpha": res["alpha"]}
+        summary["steps"]["calibration_live_refit"] = refits or "no league at threshold yet"
+    except Exception as e:
+        log.warning("scheduled calibration refit failed: %s", e)
+        summary["steps"]["calibration_live_refit"] = f"error: {e}"
 
     summary["finished"] = datetime.now(timezone.utc).isoformat()
     _last_run["refresh_models"] = summary

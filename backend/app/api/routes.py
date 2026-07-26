@@ -826,6 +826,42 @@ async def worldcup_simulate(n_sims: int = 10000, seed: int = None, groups_json: 
 
 # ─── Calibration (predictions vs settled bets) ─────────
 
+@router.get("/trackrecord")
+async def trackrecord():
+    """The live prediction log — the part a backtest can't fake.
+
+    Every row was written BEFORE kickoff by the daily pipeline, then scored
+    when the result arrived (predict -> log -> score; ratings update after).
+    World Cup 2026 is complete (104 matches incl. the final); the club log
+    fills the same way once the 2026-27 season starts. Public, read-only.
+    """
+    out = {}
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        for key, table, extra in (("world_cup", "wc_match_log", ""),
+                                  ("clubs", "club_match_log", ", league")):
+            try:
+                rows = await (await db.execute(
+                    f"SELECT date, home, away, home_goals, away_goals, "  # noqa: S608
+                    f"p_home, p_draw, p_away, picked, correct, brier{extra} "
+                    f"FROM {table} ORDER BY date DESC")).fetchall()
+            except Exception:
+                rows = []
+            matches = [dict(r) for r in rows]
+            scored = [m for m in matches if m["brier"] is not None]
+            out[key] = {
+                "basis": "live_prekickoff_log",
+                "matches": matches,
+                "summary": {
+                    "n": len(scored),
+                    "picked_correct": sum(1 for m in scored if m["correct"]),
+                    "avg_brier": round(sum(m["brier"] for m in scored) / len(scored), 4)
+                    if scored else None,
+                },
+            }
+    return out
+
+
 @router.get("/calibration/reliability")
 async def calibration_reliability(league: str = "premier_league", season: str = "2526"):
     """Reliability curve + Brier decomposition for one league-season.

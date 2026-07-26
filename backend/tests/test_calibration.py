@@ -179,3 +179,71 @@ class TestLogTableAllowlist:
     def test_accepts_known_tables(self):
         assert "wc_match_log" in calibration_layer.ALLOWED_LOG_TABLES
         assert "club_match_log" in calibration_layer.ALLOWED_LOG_TABLES
+
+
+class TestLiveLearningLoop:
+    """The in-season path: alphas refit from the live club log as it fills."""
+
+    def test_sparse_live_data_never_clobbers_a_fitted_alpha(self, monkeypatch, tmp_path):
+        """August failure mode: the scheduler refit runs with a handful of live
+        matches while the sport still carries a good backtest-fitted alpha.
+        fit() must keep the existing value, not overwrite it with a default."""
+        import sqlite3
+
+        from app.services import calibration_layer as cl
+
+        db = tmp_path / "t.db"
+        con = sqlite3.connect(db)
+        con.execute("""CREATE TABLE club_match_log (
+            league TEXT, home_goals INT, away_goals INT,
+            p_home REAL, p_draw REAL, p_away REAL,
+            p_home_raw REAL, p_draw_raw REAL, p_away_raw REAL)""")
+        con.execute("""INSERT INTO club_match_log VALUES
+            ('premier_league', 2, 1, .5, .3, .2, .55, .27, .18)""")
+        con.commit(); con.close()
+        monkeypatch.setattr(cl, "DB_PATH", str(db))
+        cl._state.clear()
+        cl._state["club_epl"] = {"alpha": 0.88, "n": 380}   # the backtest fit
+
+        res = asyncio.run(cl.fit("club_epl", "club_match_log",
+                                 league="premier_league", use_raw=True))
+
+        assert res["n"] == 1 and res["alpha"] is None
+        assert cl._state["club_epl"]["alpha"] == 0.88, "sparse refit clobbered the fit"
+
+    def test_live_refit_uses_raw_vectors(self, monkeypatch, tmp_path):
+        """Live rows carry served AND raw vectors; the refit must read raw —
+        fitting served probs composes with the alpha already applied (the
+        drift bug, third appearance)."""
+        import sqlite3
+
+        from app.services import calibration_layer as cl
+
+        db = tmp_path / "t.db"
+        con = sqlite3.connect(db)
+        con.execute("""CREATE TABLE club_match_log (
+            league TEXT, home_goals INT, away_goals INT,
+            p_home REAL, p_draw REAL, p_away REAL,
+            p_home_raw REAL, p_draw_raw REAL, p_away_raw REAL)""")
+        # 60 rows; raw claims 60/25/15 and outcomes match that vector exactly
+        # (36 home wins, 15 draws, 9 away wins), so raw is well calibrated.
+        # The served vector was shrunk to 45/33/22 by an earlier alpha.
+        rows = []
+        for i in range(60):
+            if i < 36:
+                hg, ag = 2, 0
+            elif i < 51:
+                hg, ag = 1, 1
+            else:
+                hg, ag = 0, 1
+            rows.append(("premier_league", hg, ag, .45, .33, .22, .60, .25, .15))
+        con.executemany("INSERT INTO club_match_log VALUES (?,?,?,?,?,?,?,?,?)", rows)
+        con.commit(); con.close()
+        monkeypatch.setattr(cl, "DB_PATH", str(db))
+        cl._state.clear()
+
+        res = asyncio.run(cl.fit("club_epl", "club_match_log",
+                                 league="premier_league", use_raw=True))
+        # Raw 60% claims matched by 60% outcomes -> alpha ~1. Had it fit the
+        # served 45% vectors it would demand a large sharpen (alpha >> 1).
+        assert res["alpha"] == pytest.approx(1.0, abs=0.1), res
