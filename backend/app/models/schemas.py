@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import Field, BaseModel
 from typing import Optional
 
 class MatchAnalysisRequest(BaseModel):
@@ -38,3 +38,7 @@ class FixturesRequest(BaseModel):
     sport: str
     league: Optional[str] = None
     date: Optional[str] = None
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=3, max_length=200)

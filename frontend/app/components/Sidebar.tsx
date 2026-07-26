@@ -9,10 +9,12 @@ const ICONS: Record<string, string> = {
   layers: "M12 2 2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5",
   calendar: "M8 2v4 M16 2v4 M3 8h18 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
+  ask: "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z",
 };
 
 const navItems = [
   { href: "/", label: "Track Record", icon: "chart" },
+  { href: "/ask", label: "Ask the Model", icon: "ask" },
   { href: "/fixtures", label: "Fixtures", icon: "calendar" },
   { href: "/analyze", label: "Analyze Match", icon: "search" },
   { href: "/multi", label: "Multi Builder", icon: "layers" },

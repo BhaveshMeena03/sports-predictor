@@ -86,8 +86,7 @@ export default function Landing() {
         </h1>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
           An ensemble of Elo ratings and a Dixon-Coles goals model, scored on every
-          prediction it makes. It sits within a few thousandths of the closing line
-          on Brier score — and the same backtests prove it doesn&apos;t beat it.
+          prediction it makes. Its prediction error sits within a fraction of a percent of the bookmakers&apos; closing line — and the same backtests prove it doesn&apos;t beat it.
           That honesty is the product: well-calibrated probabilities you can verify,
           not picks that promise profit.
         </p>
@@ -100,7 +99,7 @@ export default function Landing() {
             value={wc ? `${Math.round((wc.summary.picked_correct / wc.summary.n) * 100)}%` : "—"}
             sub={wc ? `${wc.summary.picked_correct} of ${wc.summary.n}, incl. the final` : ""}
           />
-          <Kpi label="Live Brier score" value={wc ? wc.summary.avg_brier.toFixed(4) : "—"} sub="lower is better · 0.2222 = coin-flip" />
+          <Kpi label="Prediction error, live" value={wc ? wc.summary.avg_brier.toFixed(4) : "—"} sub="Brier score: 0 = perfect, 0.2222 = pure guessing" />
           <Kpi label="Club season log" value={clubs && clubs.summary.n > 0 ? String(clubs.summary.n) : "starts Aug"} sub="5 leagues, same live scoring" />
         </div>
       </section>
@@ -156,9 +155,7 @@ export default function Landing() {
           Against the hardest benchmark there is
         </h2>
         <p className="text-xs mb-5" style={{ color: "var(--text-muted)" }}>
-          Brier score vs the de-vigged closing line on the same matches, 2025-26. The gap is a few
-          points per thousand — the market stays sharper, and this chart exists to show by exactly
-          how much.
+          Prediction error (Brier score — how far stated probabilities land from what actually happened; lower is better) vs the bookmakers&apos; closing line on the same matches, 2025-26. The market stays slightly sharper, and this chart shows by exactly how much.
         </p>
         {dumbbell.length ? (
           <BrierDumbbell rows={dumbbell} />
@@ -195,7 +192,7 @@ export default function Landing() {
                 <th className="py-2 pr-3 font-medium">result</th>
                 <th className="py-2 pr-3 font-medium">p(H/D/A) stated</th>
                 <th className="py-2 pr-3 font-medium">picked</th>
-                <th className="py-2 pr-0 font-medium text-right">brier</th>
+                <th className="py-2 pr-0 font-medium text-right">error (brier)</th>
               </tr>
             </thead>
             <tbody style={{ color: "var(--text-secondary)" }}>
@@ -249,6 +246,7 @@ export default function Landing() {
 
       {/* ── Tools ────────────────────────────────────────── */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4">
+        <ToolLink href="/ask" title="Ask the model" desc="Type a question in plain English — get the model's numbers and its read" />
         <ToolLink href="/fixtures" title="Fixtures & probabilities" desc="Upcoming matches with model probabilities and derived markets" />
         <ToolLink href="/analyze" title="Match analyzer" desc="Full ensemble + AI write-up for any fixture" />
       </section>

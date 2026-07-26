@@ -52,18 +52,18 @@ export default function BrierDumbbell({ rows }: { rows: LeagueBrier[] }) {
             ))}
           </div>
           <span className="text-xs text-right" style={{ color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
-            +{((r.model - r.market) * 1000).toFixed(1)}‰ gap
+            gap {(r.model - r.market).toFixed(4)}
           </span>
         </div>
       ))}
       <div className="flex gap-5 pt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
         <span className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-full" style={{ background: MODEL }} /> model Brier
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: MODEL }} /> model error
         </span>
         <span className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-full" style={{ background: MARKET }} /> closing-line Brier
+          <span className="inline-block w-3 h-3 rounded-full" style={{ background: MARKET }} /> bookmakers&apos; closing line
         </span>
-        <span className="ml-auto" style={{ color: "var(--text-muted)" }}>lower is better →← axis spans the data</span>
+        <span className="ml-auto" style={{ color: "var(--text-muted)" }}>error = Brier score · lower is better</span>
       </div>
     </div>
   );

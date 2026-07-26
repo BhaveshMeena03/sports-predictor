@@ -3,7 +3,7 @@ import logging
 import aiosqlite
 from fastapi import APIRouter, Depends, Header, HTTPException
 from app.models.schemas import (
-    MatchAnalysisRequest, MultiBetRequest, BetRecord,
+    AskRequest, MatchAnalysisRequest, MultiBetRequest, BetRecord,
     QuickAnalysisRequest, FixturesRequest
 )
 from app.core.config import settings
@@ -68,6 +68,19 @@ async def scheduler_run_now():
     """Manually trigger the daily model-refresh job (re-ingest intl + refit DC)."""
     from app.services.scheduler import refresh_models
     return await refresh_models()
+
+
+# ─── Ask the model ──────────────────────────────────────
+
+@router.post("/ask", dependencies=PAID)
+async def ask(req: AskRequest):
+    """Plain-English question -> the model's grounded answer.
+
+    Fixture resolution and the prediction itself are free (heuristics + math);
+    only the short write-up calls the LLM, so this sits behind the same rate
+    limits and daily budget as the other paid endpoints."""
+    from app.services.ask import answer_question
+    return await answer_question(req.question)
 
 
 # ─── Fixtures ───────────────────────────────────────────
