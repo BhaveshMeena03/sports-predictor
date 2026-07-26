@@ -8,3 +8,7 @@ pydantic==2.9.0
 sqlite-utils==3.37
 aiosqlite==0.20.0
 apscheduler==3.10.4
+# Dixon-Coles fitting (app/services/poisson.py) — imports fine locally under
+# anaconda, then crashes on a clean install without these.
+numpy==1.26.4
+scipy==1.12.0

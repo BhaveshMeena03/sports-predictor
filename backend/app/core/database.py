@@ -1,7 +1,13 @@
 import aiosqlite
 import os
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "sports_predictor.db")
+# DATA_DIR points at the persistent volume in deployment (see Dockerfile).
+# Unset locally -> the repo-root sports_predictor.db, exactly as before.
+# The database is the product's memory: wc_match_log / club_match_log hold
+# live pre-kickoff predictions that cannot be regenerated, so in production
+# this MUST resolve to mounted storage, not the container filesystem.
+_default_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+DB_PATH = os.path.join(os.getenv("DATA_DIR", _default_dir), "sports_predictor.db")
 
 async def get_db():
     db = await aiosqlite.connect(DB_PATH)

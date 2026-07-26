@@ -1,14 +1,14 @@
 import logging
 
 import aiosqlite
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from app.models.schemas import (
     MatchAnalysisRequest, MultiBetRequest, BetRecord,
     QuickAnalysisRequest, FixturesRequest
 )
 from app.core.config import settings
 from app.core.database import DB_PATH
-from app.core.security import llm_limit, public_limit, require_admin
+from app.core.security import is_owner, llm_daily_budget, llm_limit, public_limit, require_admin
 from app.services.ai_analyzer import ai_analyzer
 from app.services.football_service import football_service, LEAGUE_IDS
 from app.services.odds_service import odds_service
@@ -28,7 +28,7 @@ router = APIRouter(dependencies=[Depends(public_limit)])
 # Endpoints that mutate state, rebuild models, or run paid backtests.
 ADMIN = [Depends(require_admin)]
 # Endpoints that call the LLM analyst: per-IP AND global caps bound the spend.
-PAID = [Depends(llm_limit)]
+PAID = [Depends(llm_limit), Depends(llm_daily_budget)]
 
 
 @router.get("/health")
@@ -42,6 +42,7 @@ async def quota():
     return {
         "api_football": api_football_quota.status(),
         "odds_api": odds_api_quota.status(),
+        "llm_daily_budget": llm_daily_budget.status(),
     }
 
 
@@ -98,12 +99,21 @@ async def _ensure_prediction_prob_cols(db) -> None:
     for col in ("p_home", "p_draw", "p_away"):
         if col not in cols:
             await db.execute(f"ALTER TABLE predictions ADD COLUMN {col} REAL")
+    if "source" not in cols:
+        # 'owner' | 'public'. Rows from before the public deploy are NULL and
+        # are treated as owner rows — they predate any public traffic.
+        await db.execute("ALTER TABLE predictions ADD COLUMN source TEXT")
     await db.commit()
 
 
 async def _log_prediction(req: MatchAnalysisRequest, analysis: dict, odds_used: float | None,
-                          probs: list[float] | None = None) -> int | None:
-    """Persist every analysis so we can score calibration once bets settle."""
+                          probs: list[float] | None = None,
+                          source: str = "public") -> int | None:
+    """Persist every analysis so we can score calibration once bets settle.
+
+    `source` separates the owner's tracked predictions from anonymous public
+    traffic: the calibration tracker only aggregates owner rows, so strangers
+    can use /analyze without being able to distort the published numbers."""
     try:
         async with aiosqlite.connect(DB_PATH) as db:
             await _ensure_prediction_prob_cols(db)
@@ -111,8 +121,9 @@ async def _log_prediction(req: MatchAnalysisRequest, analysis: dict, odds_used: 
             cur = await db.execute(
                 """INSERT INTO predictions
                    (sport, league, home_team, away_team, match_date,
-                    prediction, confidence, odds, reasoning, p_home, p_draw, p_away)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    prediction, confidence, odds, reasoning, p_home, p_draw, p_away,
+                    source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     req.sport, req.league, req.home_team, req.away_team, req.date,
                     str(analysis.get("recommendation", "")),
@@ -120,6 +131,7 @@ async def _log_prediction(req: MatchAnalysisRequest, analysis: dict, odds_used: 
                     odds_used,
                     str(analysis.get("reasoning", "")),
                     ph, pd, pa,
+                    source,
                 ),
             )
             await db.commit()
@@ -130,7 +142,8 @@ async def _log_prediction(req: MatchAnalysisRequest, analysis: dict, odds_used: 
 
 
 @router.post("/analyze", dependencies=PAID)
-async def analyze_match(req: MatchAnalysisRequest):
+async def analyze_match(req: MatchAnalysisRequest,
+                        x_admin_token: str | None = Header(default=None)):
     match_data = {
         "sport": req.sport,
         "league": req.league,
@@ -221,7 +234,9 @@ async def analyze_match(req: MatchAnalysisRequest):
         if ensemble_pick:
             log_payload["recommendation"] = ensemble_pick["recommendation"]
             log_payload["confidence"] = ensemble_pick["confidence"]
-        prediction_id = await _log_prediction(req, log_payload, odds_used, probs=ensemble_probs)
+        prediction_id = await _log_prediction(
+        req, log_payload, odds_used, probs=ensemble_probs,
+        source="owner" if is_owner(x_admin_token) else "public")
 
     return {
         "match": f"{req.home_team} vs {req.away_team}",
@@ -818,12 +833,22 @@ async def calibration_reliability(league: str = "premier_league", season: str = 
     This is the evidence behind the calibration claim: does a stated 60%
     actually happen ~60% of the time, and how does that compare to the closing
     line on the same matches. Accuracy is deliberately not the headline — no
-    1X2 model picks draws, so ~27% of matches are unwinnable on that metric."""
-    from app.services.calibration_report import league_report
+    1X2 model picks draws, so ~27% of matches are unwinnable on that metric.
+
+    Serves the report stored at fit time — a pure read. The underlying backtest
+    replays a full season AND rebuilds elo_ratings, so it must never run on a
+    public request path (CPU exhaustion + concurrent rebuilds racing the same
+    ratings table)."""
+    from app.services.calibration_report import stored_report
     from app.services.club_service import LEAGUES
     if league not in LEAGUES:
         raise HTTPException(400, f"Unknown league. Valid: {sorted(LEAGUES)}")
-    return await league_report(league, season)
+    report = await stored_report(league, season)
+    if report is None:
+        raise HTTPException(
+            404, f"No stored report for {league}/{season}. "
+                 "An admin can generate it via POST /calibration/fit.")
+    return report
 
 
 @router.post("/calibration/fit", dependencies=ADMIN)
@@ -853,6 +878,9 @@ async def calibration():
             FROM predictions p
             JOIN bets b ON b.match = (p.home_team || ' vs ' || p.away_team)
             WHERE b.result IN ('won', 'lost') AND p.confidence IS NOT NULL
+              -- Owner rows only: public /analyze traffic must not be able to
+              -- distort the published tracker. NULL predates the public deploy.
+              AND (p.source IS NULL OR p.source = 'owner')
         """)).fetchall()
 
     buckets = {"<50": [], "50-69": [], "70-84": [], "85+": []}

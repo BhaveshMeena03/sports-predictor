@@ -80,6 +80,18 @@ async def require_admin(request: Request,
         raise HTTPException(status_code=401, detail="Invalid or missing X-Admin-Token.")
 
 
+def is_owner(x_admin_token: str | None) -> bool:
+    """Non-raising check: does this request carry the admin token?
+
+    Used to LABEL rather than gate — e.g. tagging prediction-log rows as
+    'owner' vs 'public' so anonymous traffic can't pollute the owner's
+    calibration tracker. Never use this to protect an endpoint; that's
+    require_admin's job, which fails closed.
+    """
+    return bool(ADMIN_TOKEN) and bool(x_admin_token) \
+        and compare_digest(x_admin_token, ADMIN_TOKEN)
+
+
 class RateLimiter:
     """Sliding-window limiter.
 
@@ -137,10 +149,56 @@ class RateLimiter:
         self._sweep(now)
 
 
+class DailyBudget:
+    """Absolute daily call ceiling for endpoints that spend real money.
+
+    Per-minute limits bound burst rate, not the bill: 20/min globally still
+    compounds to 28,800 calls/day. This is the kill-switch — once the day's
+    budget is gone, paid endpoints answer 429 until UTC midnight regardless of
+    who is asking. In-process, same single-replica scope as RateLimiter.
+    """
+
+    def __init__(self, daily_limit: int, name: str = ""):
+        self.daily_limit = daily_limit
+        self.name = name
+        self._day: str | None = None
+        self._used = 0
+
+    @staticmethod
+    def _today() -> str:
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    def _roll(self) -> None:
+        today = self._today()
+        if today != self._day:
+            self._day, self._used = today, 0
+
+    def status(self) -> dict:
+        self._roll()
+        return {"daily_limit": self.daily_limit, "used_today": self._used,
+                "remaining": max(0, self.daily_limit - self._used)}
+
+    async def __call__(self, request: Request) -> None:
+        self._roll()
+        if self._used >= self.daily_limit:
+            log.error("daily budget exhausted on %s (%d calls) — refusing "
+                      "paid requests until UTC midnight", self.name, self._used)
+            raise HTTPException(
+                status_code=429,
+                detail="Daily capacity reached; resets at 00:00 UTC.",
+                headers={"Retry-After": "3600"},
+            )
+        self._used += 1
+
+
 # Public reads/analysis.
 public_limit = RateLimiter(RATE_LIMIT_RPM, name="public")
 # Endpoints that call a paid model — per-IP AND a hard global ceiling.
 llm_limit = RateLimiter(LLM_RPM, global_rpm=LLM_GLOBAL_RPM, name="llm")
+# ...and an absolute per-day cap on top. ~300 calls/day at ~1-2c each bounds
+# the worst case to a few dollars, not a drained account.
+llm_daily_budget = DailyBudget(int(os.getenv("LLM_DAILY_CAP", "300")), name="llm")
 
 
 def cors_origins() -> list[str]:

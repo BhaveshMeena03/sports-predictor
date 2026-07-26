@@ -151,19 +151,85 @@ def fit_shrinkage(samples: list[dict], key: str = "probs") -> dict:
     }
 
 
+"""Report storage.
+
+The walk-forward backtest behind these numbers is expensive (a full season
+through predict_v2) AND it rebuilds the league's elo_ratings while it runs, so
+it must never be reachable from a public request — one caller in a loop would
+peg the CPU, and two concurrent callers would interleave rebuilds of the same
+ratings table. Reports are therefore computed when the admin (re)fits
+calibration and stored; the public endpoint only ever reads.
+"""
+
+import asyncio
+import json
+from datetime import datetime, timezone
+
+import aiosqlite
+
+from app.core.database import DB_PATH
+
+# Serialises fits: they DELETE + rebuild elo_ratings per league, so two running
+# at once — even two admin calls — would corrupt the replay.
+_fit_lock = asyncio.Lock()
+
+
+async def _ensure_report_table() -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS calibration_reports (
+                league      TEXT NOT NULL,
+                season      TEXT NOT NULL,
+                report      TEXT NOT NULL,
+                computed_at TEXT NOT NULL,
+                PRIMARY KEY (league, season)
+            )
+        """)
+        await db.commit()
+
+
+async def _store_report(league_key: str, season: str, report: dict) -> None:
+    await _ensure_report_table()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            INSERT INTO calibration_reports (league, season, report, computed_at)
+            VALUES (?,?,?,?)
+            ON CONFLICT(league, season) DO UPDATE SET
+              report=excluded.report, computed_at=excluded.computed_at
+        """, (league_key, season, json.dumps(report),
+              datetime.now(timezone.utc).isoformat(timespec="seconds")))
+        await db.commit()
+
+
+async def stored_report(league_key: str, season: str = "2526") -> dict | None:
+    """The read path the public endpoint uses. Never computes anything."""
+    await _ensure_report_table()
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        row = await (await db.execute(
+            "SELECT report, computed_at FROM calibration_reports "
+            "WHERE league=? AND season=?", (league_key, season))).fetchone()
+    if row is None:
+        return None
+    out = json.loads(row["report"])
+    out["computed_at"] = row["computed_at"]
+    return out
+
+
 async def fit_and_store(league_key: str, season: str = "2526") -> dict:
-    """Fit this league's alpha from the walk-forward backtest and persist it.
+    """One backtest pass -> both the fitted alpha AND the stored report.
 
     Club leagues have no live prediction log until the season starts, so the
-    backtest is the only honest source. It is genuinely out-of-sample — each
-    match is predicted from ratings that exclude it, then the ratings update —
-    but it is a backtest, so the stored `basis` says so.
+    walk-forward backtest is the only honest source. It is genuinely
+    out-of-sample — each match is predicted from ratings that exclude it, then
+    the ratings update — but it is a backtest, so the stored `basis` says so.
     """
     from app.services import calibration_layer
     from app.services.club_service import LEAGUES, backtest_league_season
 
     sport = LEAGUES[league_key]["sport"]
-    bt = await backtest_league_season(league_key, season=season, collect=True)
+    async with _fit_lock:
+        bt = await backtest_league_season(league_key, season=season, collect=True)
     samples = bt.get("samples", [])
     if len(samples) < 30:
         return {"league": league_key, "sport": sport, "n": len(samples),
@@ -175,6 +241,7 @@ async def fit_and_store(league_key: str, season: str = "2526") -> dict:
     await calibration_layer.store(
         sport, fit["alpha"], len(samples),
         fit["brier_raw"], fit["brier_calibrated"])
+    await _store_report(league_key, season, _build_report(bt, season))
     return {"league": bt["league"], "sport": sport, "season": season,
             "basis": "walk_forward_backtest", "n": len(samples), **fit}
 
@@ -184,11 +251,8 @@ async def fit_all_clubs(season: str = "2526") -> dict:
     return {lg: await fit_and_store(lg, season) for lg in LEAGUES}
 
 
-async def league_report(league_key: str, season: str = "2526") -> dict:
-    """Full calibration evidence for one league-season, model vs market."""
-    from app.services.club_service import backtest_league_season
-
-    bt = await backtest_league_season(league_key, season=season, collect=True)
+def _build_report(bt: dict, season: str) -> dict:
+    """Assemble the calibration evidence from an already-run backtest."""
     samples = bt.get("samples", [])
     with_market = [s for s in samples if s.get("market")]
 
