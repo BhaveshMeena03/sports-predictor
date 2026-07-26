@@ -11,10 +11,13 @@ class Settings:
 
     # AI
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    # Fable 5 for WC analysis — sharper reasoning, less hallucination risk on
-    # situations like the Columbus-Crew-standings disaster. Costs more per call
-    # but worth it for high-stakes match analysis.
-    AI_MODEL: str = os.getenv("AI_MODEL", "claude-fable-5")
+    # Sonnet 5. The LLM is one signal of four in the ensemble at weight 0.15 —
+    # Elo + Poisson carry 85% of the blend for free — so flagship pricing here
+    # bought almost nothing: Fable 5 cost 5-12c per analysis vs ~1-2c on Sonnet.
+    # Sonnet still writes the user-visible reasoning well (same call as the
+    # concierge: customer-facing -> Sonnet, not Haiku). Swap via env if a
+    # specific high-stakes run justifies it: AI_MODEL=claude-fable-5
+    AI_MODEL: str = os.getenv("AI_MODEL", "claude-sonnet-5")
 
     # Sports Data APIs
     API_FOOTBALL_KEY: str = os.getenv("API_FOOTBALL_KEY", "")

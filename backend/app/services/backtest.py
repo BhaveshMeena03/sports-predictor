@@ -37,8 +37,14 @@ from app.services.ensemble import blend, get_weights
 
 log = logging.getLogger(__name__)
 
+# Artifacts follow the database onto DATA_DIR: in the container /app is
+# root-owned and the app runs unprivileged, so writing next to the code
+# crashes at import (and artifacts would vanish on redeploy anyway).
+# Locally DATA_DIR is unset -> repo-root backtests/, exactly as before.
 BACKTEST_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "backtests"
+    os.getenv("DATA_DIR")
+    or os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "backtests",
 )
 os.makedirs(BACKTEST_DIR, exist_ok=True)
 

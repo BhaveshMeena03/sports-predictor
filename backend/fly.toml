@@ -1,0 +1,33 @@
+# Sports Predictor API — always-on:
+#  - the daily scheduler ingests results and updates ratings at 05:00 UTC
+#  - x402station's verified badge (later) requires >=95% uptime over 7 days
+# so auto-stop stays off; this is the always-on price we accepted (~$3.50/mo).
+
+app = "sports-predictor-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DATA_DIR = "/data"
+  # Fly's edge proxy sets X-Forwarded-For; without this every request would
+  # appear to come from the proxy IP and share one rate-limit bucket.
+  TRUST_PROXY = "1"
+
+[[mounts]]
+  source = "data"
+  destination = "/data"
+  # The volume holds sports_predictor.db — wc_match_log is the live World Cup
+  # track record and cannot be regenerated. Never deploy this app without it.
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
