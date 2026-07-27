@@ -18,6 +18,7 @@ const navItems = [
   { href: "/fixtures", label: "Fixtures", icon: "calendar" },
   { href: "/analyze", label: "Analyze Match", icon: "search" },
   { href: "/multi", label: "Multi Builder", icon: "layers" },
+  { href: "/log", label: "My Bet Log", icon: "list" },
 ];
 
 export default function Sidebar() {

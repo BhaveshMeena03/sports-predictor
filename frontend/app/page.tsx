@@ -247,6 +247,7 @@ export default function Landing() {
       {/* ── Tools ────────────────────────────────────────── */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4">
         <ToolLink href="/ask" title="Ask the model" desc="Type a question in plain English — get the model's numbers and its read" />
+        <ToolLink href="/log" title="My bet log" desc="Track your own bets and real ROI — saved in your browser, never uploaded" />
         <ToolLink href="/fixtures" title="Fixtures & probabilities" desc="Upcoming matches with model probabilities and derived markets" />
         <ToolLink href="/analyze" title="Match analyzer" desc="Full ensemble + AI write-up for any fixture" />
       </section>
