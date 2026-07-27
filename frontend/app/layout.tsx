@@ -25,6 +25,13 @@ const DESCRIPTION =
   "scores it in public — misses included. Machine-payable per call over " +
   "x402 on Base. Informational only, not betting advice.";
 
+// The card itself is app/opengraph-image.png — a committed file, not the
+// generated route it started as. Next writes a generated card to an
+// extensionless path, which Render then serves as binary/octet-stream, and
+// scrapers reject an og:image that does not arrive with an image content
+// type: Farcaster rendered an empty grey box. A real .png extension makes the
+// MIME type correct on any static host. The JSX that produced this image is
+// in git history at commit 8988482 if the numbers ever need updating.
 export const metadata: Metadata = {
   // Scrapers reject relative URLs, and static export has no request context to
   // infer an origin from, so the absolute base has to be stated.
