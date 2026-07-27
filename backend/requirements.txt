@@ -12,3 +12,6 @@ apscheduler==3.10.4
 # anaconda, then crashes on a clean install without these.
 numpy==1.26.4
 scipy==1.12.0
+# x402: machine payments (USDC on Base). [evm] pulls the eth signing/ABI deps
+# the exact-scheme verifier needs — without it the EVM mechanism won't import.
+x402[evm,fastapi]==2.16.0

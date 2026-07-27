@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 
 import aiosqlite
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -68,6 +69,59 @@ async def scheduler_run_now():
     """Manually trigger the daily model-refresh job (re-ingest intl + refit DC)."""
     from app.services.scheduler import refresh_models
     return await refresh_models()
+
+
+# ─── Machine-payable slate (x402) ───────────────────────
+
+@router.get("/v1/probabilities")
+async def probabilities_slate(days: int = 14):
+    """Every upcoming fixture with calibrated probabilities and derived markets.
+
+    The one endpoint priced for agents (x402, USDC on Base). It is pure model
+    output — no LLM — so it carries no per-call model cost, only compute.
+
+    Free when X402_PAY_TO is unset, so an unconfigured deploy degrades to free
+    rather than to a broken paywall.
+    """
+    from app.core.payments import status as pay_status
+    from app.services.ask import upcoming_fixtures
+    from app.services.club_service import predict_club
+
+    days = max(1, min(days, 30))
+    fixtures = [f for f in await upcoming_fixtures()
+                if f["date"] <= (datetime.now(timezone.utc)
+                                 + timedelta(days=days)).strftime("%Y-%m-%d")]
+
+    out = []
+    for f in fixtures:
+        try:
+            p = await predict_club(f["league"], f["home"], f["away"])
+        except Exception as e:      # one bad fixture must not void the slate
+            log.warning("slate: prediction failed for %s v %s: %s",
+                        f["home"], f["away"], e)
+            continue
+        out.append({
+            "league": f["league"], "league_label": f["league_label"],
+            "date": f["date"], "home": f["home"], "away": f["away"],
+            "probabilities": {"home": p["p_home"], "draw": p["p_draw"],
+                              "away": p["p_away"]},
+            "expected_goals": {"home": p["xg_home"], "away": p["xg_away"]},
+            "markets": p.get("markets"),
+        })
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "window_days": days,
+        "count": len(out),
+        "fixtures": out,
+        "model": {
+            "type": "elo+dixon-coles ensemble, per-league calibrated",
+            "calibration": "1X2 probabilities calibrated; derived markets raw",
+            "track_record": "/api/trackrecord",
+            "reliability": "/api/calibration/reliability",
+        },
+        "payment": {"protocol": "x402", "enabled": pay_status()["enabled"]},
+    }
 
 
 # ─── Ask the model ──────────────────────────────────────

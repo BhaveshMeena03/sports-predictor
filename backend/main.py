@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.core.database import init_db
+from app.core import payments
 from app.core.security import ADMIN_TOKEN, cors_origins
 from app.services.scheduler import start_scheduler, shutdown_scheduler
 
@@ -44,6 +45,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Admin-Token"],
 )
+
+# x402 payment middleware. No-ops unless X402_PAY_TO is set, so an
+# unconfigured deploy serves the slate free rather than half-paywalled.
+payments.install(app)
 
 app.include_router(router, prefix="/api")
 
