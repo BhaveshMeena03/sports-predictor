@@ -13,9 +13,36 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE = "https://sports-predictor-7nf6.onrender.com";
+const TITLE = "Sports Predictor — predictions scored in public";
+
+// This string is the first thing a reader sees in a link preview or a search
+// result. The old copy said "AI-powered sports betting analysis" — the exact
+// claim every page on this site spends its footer disclaiming, and the wrong
+// first impression for anyone evaluating the project.
+const DESCRIPTION =
+  "A football prediction model that logs every forecast before kickoff and " +
+  "scores it in public — misses included. Machine-payable per call over " +
+  "x402 on Base. Informational only, not betting advice.";
+
 export const metadata: Metadata = {
-  title: "Sports Predictor AI",
-  description: "AI-powered sports betting analysis",
+  // Scrapers reject relative URLs, and static export has no request context to
+  // infer an origin from, so the absolute base has to be stated.
+  metadataBase: new URL(SITE),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: SITE,
+    siteName: "Sports Predictor",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
