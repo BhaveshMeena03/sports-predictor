@@ -63,6 +63,10 @@ def _norm(s: str) -> str:
 # is fixed — and a 30-minute TTL keeps postponements reasonably fresh.
 _fixture_cache: dict = {"data": None, "at": None}
 _CACHE_TTL_S = 1800
+# Guards the refresh, not the read: without it N concurrent requests arriving
+# on a cold cache would EACH fan out 155 ESPN fetches (5 leagues x 31 days).
+# One refreshes; the rest wait and then hit the warm cache.
+_fixture_lock = asyncio.Lock()
 
 
 async def upcoming_fixtures(days: int = 30) -> list[dict]:
@@ -72,12 +76,28 @@ async def upcoming_fixtures(days: int = 30) -> list[dict]:
     5 leagues x 31 days of round-trips, which took minutes and timed out the
     first end-to-end test. Cached in-process for 30 minutes.
     """
-    now = datetime.now(timezone.utc)
-    if (_fixture_cache["data"] is not None
-            and _fixture_cache.get("days", 0) >= days
-            and (now - _fixture_cache["at"]).total_seconds() < _CACHE_TTL_S):
-        return _fixture_cache["data"]
+    def _fresh() -> list[dict] | None:
+        c = _fixture_cache
+        if (c["data"] is not None and c.get("days", 0) >= days
+                and (datetime.now(timezone.utc) - c["at"]).total_seconds() < _CACHE_TTL_S):
+            return c["data"]
+        return None
 
+    cached = _fresh()
+    if cached is not None:
+        return cached
+
+    async with _fixture_lock:
+        # Re-check inside the lock: while we queued, the holder may have
+        # already refreshed, and re-fetching would defeat the point.
+        cached = _fresh()
+        if cached is not None:
+            return cached
+        return await _refresh_fixtures(days)
+
+
+async def _refresh_fixtures(days: int) -> list[dict]:
+    now = datetime.now(timezone.utc)
     sem = asyncio.Semaphore(12)
 
     async def grab(league_key: str, ds: str):

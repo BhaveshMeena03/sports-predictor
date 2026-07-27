@@ -27,7 +27,10 @@ export default function MultiPage() {
           setLegs(parsed);
           localStorage.removeItem("multiLegs");
         }
-      } catch {}
+      } catch {
+        // Corrupt hand-off payload: ignore and start with an empty slip.
+        // Nothing to report here — the user didn't ask for anything yet.
+      }
     }
   }, []);
 

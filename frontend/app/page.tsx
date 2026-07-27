@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Card from "./components/Card";
 import ReliabilityChart, { Series } from "./components/charts/ReliabilityChart";
 import BrierDumbbell, { LeagueBrier } from "./components/charts/BrierDumbbell";
+import LoadError from "./components/LoadError";
 import { API } from "./utils/api";
 
 /**
@@ -31,16 +32,30 @@ export default function Landing() {
   const [track, setTrack] = useState<Track | null>(null);
   const [league, setLeague] = useState("premier_league");
   const [showAllWc, setShowAllWc] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    fetch(`${API}/trackrecord`).then((r) => r.json()).then(setTrack).catch(() => {});
+  // Named so the Retry button can re-run it. Failures set `failed` rather than
+  // being swallowed: a silent catch renders identically to "still loading",
+  // which is how a broken deploy once looked like an empty page for hours.
+  const load = useCallback(() => {
+    setFailed(false);
+    fetch(`${API}/trackrecord`)
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then(setTrack)
+      .catch(() => setFailed(true));
+
     LEAGUES.forEach(({ key }) =>
       fetch(`${API}/calibration/reliability?league=${key}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => d && setReports((prev) => ({ ...prev, [key]: d })))
-        .catch(() => {}),
+        .catch(() => setFailed(true)),
     );
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const report = reports[league];
   const wc = track?.world_cup;
@@ -91,15 +106,24 @@ export default function Landing() {
           not picks that promise profit.
         </p>
 
+        {failed && (
+          <div className="mt-6">
+            <LoadError
+              message="Couldn't reach the prediction API — the numbers below may be missing."
+              onRetry={load}
+            />
+          </div>
+        )}
+
         {/* KPI row — live log numbers */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-          <Kpi label="World Cup 2026, live" value={wc ? String(wc.summary.n) : "—"} sub="matches predicted pre-kickoff" />
+          <Kpi label="World Cup 2026, live" value={wc?.summary?.n != null ? String(wc.summary.n) : "—"} sub="matches predicted pre-kickoff" />
           <Kpi
             label="Winner picked"
-            value={wc ? `${Math.round((wc.summary.picked_correct / wc.summary.n) * 100)}%` : "—"}
-            sub={wc ? `${wc.summary.picked_correct} of ${wc.summary.n}, incl. the final` : ""}
+            value={wc?.summary?.n ? `${Math.round((wc.summary.picked_correct / wc.summary.n) * 100)}%` : "—"}
+            sub={wc?.summary?.n ? `${wc.summary.picked_correct} of ${wc.summary.n}, incl. the final` : ""}
           />
-          <Kpi label="Prediction error, live" value={wc ? wc.summary.avg_brier.toFixed(4) : "—"} sub="Brier score: 0 = perfect, 0.2222 = pure guessing" />
+          <Kpi label="Prediction error, live" value={wc?.summary?.avg_brier != null ? wc.summary.avg_brier.toFixed(4) : "—"} sub="Brier score: 0 = perfect, 0.2222 = pure guessing" />
           <Kpi label="Club season log" value={clubs && clubs.summary.n > 0 ? String(clubs.summary.n) : "starts Aug"} sub="5 leagues, same live scoring" />
         </div>
       </section>
@@ -137,14 +161,14 @@ export default function Landing() {
           <ReliabilityChart series={curves} />
         ) : (
           <div className="h-64 flex items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
-            loading curves…
+            {failed ? "unavailable" : "loading curves…"}
           </div>
         )}
         {report && (
           <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-            Reliability {report.model.decomposition.reliability.toFixed(5)} (distance from perfect
-            calibration) · resolution {report.model.decomposition.resolution.toFixed(5)} ·
-            n={report.model.decomposition.n_points} points.
+            Reliability {report.model.decomposition?.reliability?.toFixed(5) ?? "—"} (distance from
+            perfect calibration) · resolution {report.model.decomposition?.resolution?.toFixed(5) ?? "—"} ·
+            n={report.model.decomposition?.n_points ?? 0} points.
           </p>
         )}
       </Card>
@@ -161,7 +185,7 @@ export default function Landing() {
           <BrierDumbbell rows={dumbbell} />
         ) : (
           <div className="h-24 flex items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
-            loading…
+            {failed ? "unavailable" : "loading…"}
           </div>
         )}
       </Card>

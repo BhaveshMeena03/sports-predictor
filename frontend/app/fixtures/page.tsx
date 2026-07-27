@@ -4,6 +4,7 @@ import Card from "../components/Card";
 import { TeamLogo, LeagueLogo } from "../components/TeamLogo";
 import { useRouter } from "next/navigation";
 import { API } from "../utils/api";
+import LoadError from "../components/LoadError";
 
 
 const SPORT_FILTERS = [
@@ -43,6 +44,7 @@ export default function FixturesPage() {
   const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState("all");
   const [multiLegs, setMultiLegs] = useState<MultiLeg[]>([]);
   const [showMultiPanel, setShowMultiPanel] = useState(false);
@@ -52,7 +54,9 @@ export default function FixturesPage() {
     try {
       const sportParam = sportFilter && sportFilter !== "all" ? `?sports=${sportFilter}` : "?sports=premier_league,la_liga,bundesliga,nba";
       const resp = await fetch(`${API}/upcoming-with-odds${sportParam}`);
+      if (!resp.ok) throw new Error(String(resp.status));
       const data = await resp.json();
+      setLoadError(null);
       // Merge with existing matches (don't replace - accumulate)
       setMatches(prev => {
         const newMatches = data.matches || [];
@@ -64,7 +68,9 @@ export default function FixturesPage() {
         return merged;
       });
     } catch {
-      // Keep existing matches on error
+      // Keep whatever is already on screen, but SAY that the refresh failed —
+      // silently keeping stale data looks identical to "nothing new today".
+      setLoadError("Couldn't load fixtures. Showing whatever loaded earlier.");
     } finally {
       setLoading(false);
     }
@@ -133,6 +139,7 @@ export default function FixturesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {loadError && <LoadError message={loadError} onRetry={() => loadMatches()} />}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--cyan)" }}>Upcoming Matches</h1>
