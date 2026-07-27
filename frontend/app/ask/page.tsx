@@ -15,6 +15,7 @@ const SUGGESTIONS = [
   "Can Arsenal beat Coventry?",
   "First La Liga game prediction",
   "What happens when Spurs play?",
+  "Build me a 2.5x multi, nothing too risky",
 ];
 
 export default function AskPage() {
@@ -137,7 +138,63 @@ export default function AskPage() {
         </Card>
       )}
 
-      {res?.resolved && (
+      {res?.resolved && res.kind === "multi" && (
+        <Card>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              {res.multi.legs.length}-leg multi
+            </h2>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              fair {res.multi.fair_multiplier}x
+              {!res.multi.reached_target && " (below target)"}
+            </span>
+          </div>
+
+          {/* The number people skip — so it is the biggest thing on the card. */}
+          <div className="rounded-lg p-4 my-3 text-center"
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border)" }}>
+            <p className="text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              chance all {res.multi.legs.length} legs land
+            </p>
+            <p className="text-3xl font-bold mt-1"
+              style={{ color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>
+              {Math.round(res.multi.combined_probability * 100)}%
+            </p>
+          </div>
+
+          <div className="space-y-2 mb-4">
+            {res.multi.legs.map((l: any) => (
+              <div key={l.match} className="flex items-center justify-between gap-3 text-xs"
+                style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem" }}>
+                <div>
+                  <span style={{ color: "var(--text-primary)" }}>{l.match}</span>
+                  <span style={{ color: "var(--text-muted)" }}> · {l.league} · {l.date}</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0"
+                  style={{ fontVariantNumeric: "tabular-nums" }}>
+                  <span style={{ color: "var(--cyan)" }}>{l.pick}</span>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {Math.round(l.probability * 100)}%
+                  </span>
+                  <span style={{ color: "var(--text-muted)" }}>@{l.fair_odds}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-sm leading-relaxed whitespace-pre-line"
+            style={{ color: "var(--text-primary)" }}>
+            {res.answer}
+          </p>
+
+          <p className="text-[11px] mt-4" style={{ color: "var(--text-muted)" }}>
+            Fair odds are the model&apos;s own (1 ÷ probability), not bookmaker prices.
+            Informational only — not betting advice.
+          </p>
+        </Card>
+      )}
+
+      {res?.resolved && res.kind !== "multi" && (
         <Card>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>

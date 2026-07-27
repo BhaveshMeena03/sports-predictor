@@ -84,3 +84,71 @@ class TestNicknameSafety:
         fx = [{"league": "serie_a", "league_label": "Serie A",
                "date": "2026-08-23", "home": "Inter Milan", "away": "Como"}]
         assert resolve_fixture("my printer is broken", fx) is None
+
+
+class TestMultiBuilder:
+    """Parlay requests. The honest headline is the COMBINED probability —
+    a '2.5x, not very risky' multi is roughly a 35-40% shot, and the whole
+    point of this feature is showing that rather than hiding it."""
+
+    FX = [{"league": "premier_league", "league_label": "Premier League",
+           "date": f"2026-08-2{i}", "home": f"Home{i}", "away": f"Away{i}"}
+          for i in range(6)]
+
+    def preds(self, probs):
+        return {("premier_league", f"Home{i}", f"Away{i}"): {"probs": p}
+                for i, p in enumerate(probs)}
+
+    def test_detects_multi_requests(self):
+        from app.services.ask import wants_multi
+        assert wants_multi("help me built a 2.5x multi") == 2.5
+        assert wants_multi("build me a parlay") == 2.5      # sensible default
+        assert wants_multi("4x acca please") == 4.0
+        assert wants_multi("give me an accumulator @3.0") == 3.0
+
+    def test_ignores_non_multi_questions(self):
+        from app.services.ask import wants_multi
+        assert wants_multi("what happens when arsenal play") is None
+        assert wants_multi("first pl match prediction") is None
+
+    def test_rejects_absurd_targets(self):
+        """A 500x 'multi' is a lottery ticket, not a request we honour
+        literally — fall back to the sane default."""
+        from app.services.ask import wants_multi
+        assert wants_multi("build me a 500x multi") == 2.5
+
+    def test_combined_probability_is_the_product_of_legs(self):
+        from app.services.ask import build_multi
+        m = build_multi(self.FX, self.preds([[0.75, .15, .10]] * 6), 2.5)
+        prod = 1.0
+        for leg in m["legs"]:
+            prod *= leg["probability"]
+        assert abs(prod - m["combined_probability"]) < 1e-3
+
+    def test_skips_coinflip_legs(self):
+        """Padding a parlay with sub-40% picks is how 'low risk' quietly
+        becomes a 15% shot."""
+        from app.services.ask import build_multi
+        m = build_multi(self.FX, self.preds([[0.34, .33, .33]] * 6), 2.5)
+        assert m is None
+
+    def test_picks_most_confident_first(self):
+        from app.services.ask import build_multi
+        probs = [[0.45, .3, .25], [0.80, .1, .1], [0.60, .2, .2],
+                 [0.50, .3, .2], [0.44, .3, .26], [0.42, .3, .28]]
+        m = build_multi(self.FX, self.preds(probs), 2.5)
+        ordered = [leg["probability"] for leg in m["legs"]]
+        assert ordered == sorted(ordered, reverse=True)
+
+    def test_fair_odds_are_the_reciprocal_of_probability(self):
+        from app.services.ask import build_multi
+        m = build_multi(self.FX, self.preds([[0.75, .15, .10]] * 6), 2.5)
+        for leg in m["legs"]:
+            assert abs(leg["fair_odds"] - 1 / leg["probability"]) < 0.01
+
+    def test_caps_leg_count(self):
+        """A 50x 'multi' must not become a 20-leg fantasy."""
+        from app.services.ask import build_multi
+        m = build_multi(self.FX, self.preds([[0.55, .25, .20]] * 6), 50)
+        assert len(m["legs"]) <= 6
+        assert m["reached_target"] is False    # and it says so honestly
