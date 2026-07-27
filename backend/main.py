@@ -58,9 +58,16 @@ if __name__ == "__main__":
     # reload= and the bind address are env-driven: reload watches the filesystem
     # and must never be on in production, and binding 0.0.0.0 by default would
     # expose a dev server to the whole network.
+    # Proxy headers only when TRUST_PROXY says we are actually behind one.
+    # X-Forwarded-Proto is spoofable by any client, so trusting it on a
+    # directly-exposed server would let a caller dictate the scheme the app
+    # reports — including the resource URL x402 puts in its payment challenge.
+    behind_proxy = os.getenv("TRUST_PROXY") == "1"
     uvicorn.run(
         "main:app",
         host=os.getenv("HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "8000")),
         reload=os.getenv("DEV_RELOAD") == "1",
+        proxy_headers=behind_proxy,
+        forwarded_allow_ips="*" if behind_proxy else None,
     )
