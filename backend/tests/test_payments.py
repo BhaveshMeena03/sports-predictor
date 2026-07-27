@@ -83,3 +83,64 @@ class TestGating:
         importlib.reload(main)
         with TestClient(main.app) as c:
             assert c.get(path).status_code == 200
+
+
+class TestBazaarDiscovery:
+    """The declaration Coinbase's catalog indexes on.
+
+    Bazaar ranks semantic search on this metadata, so a bare URL with no
+    schema is findable in theory and useless in practice. It must also
+    conform to the protocol spec BEFORE the SDK's runtime enrichment.
+    """
+
+    def extension(self):
+        pytest.importorskip("x402.extensions.bazaar")
+        from x402.extensions.bazaar import OutputConfig, declare_discovery_extension
+        from app.core.payments import _discovery_extension
+        return _discovery_extension(declare_discovery_extension, OutputConfig)
+
+    def test_conforms_to_the_protocol_spec(self):
+        ext = self.extension()          # skips if the SDK isn't installed
+        from x402.extensions.bazaar import validate_discovery_extension_spec
+        r = validate_discovery_extension_spec(ext["bazaar"])
+        assert r.valid, r.errors
+
+    def test_declares_the_http_method(self):
+        """The SDK injects this at request time but validates at startup, so
+        stating it up front is what keeps boot logs clean."""
+        assert self.extension()["bazaar"]["info"]["input"]["method"] == "GET"
+
+    def test_declares_input_and_output_schemas(self):
+        """Schemas live at the extension's top level; `info` carries the
+        example and the call shape. An agent needs both to use this blind."""
+        b = self.extension()["bazaar"]
+        props = b["schema"]["properties"]
+        assert props["input"]["type"] == "object"
+        assert props["output"]["type"] == "object"
+        # `days` sits under queryParams — the input schema describes the whole
+        # call shape (type/method/queryParams), not just our parameters.
+        assert "days" in props["input"]["properties"]["queryParams"]["properties"]
+        # The output schema wraps our shape under `example`.
+        assert "fixtures" in props["output"]["properties"]["example"]["properties"]
+        assert b["info"]["output"]["example"]
+
+    def test_output_example_matches_the_real_response_shape(self):
+        """A wrong example is worse than none — agents code against it."""
+        ex = self.extension()["bazaar"]["info"]["output"]["example"]
+        assert {"generated_at", "count", "fixtures"} <= set(ex)
+        fx = ex["fixtures"][0]
+        assert {"date", "home", "away", "probabilities"} <= set(fx)
+        p = fx["probabilities"]
+        assert abs(sum(p.values()) - 1.0) < 0.01, "example probabilities must sum to 1"
+
+    def test_installs_without_warnings(self, monkeypatch):
+        """The SDK warns on an invalid extension instead of raising, so a
+        broken declaration would ship silently."""
+        pytest.importorskip("x402.extensions.bazaar")
+        import warnings
+        from fastapi import FastAPI
+        p = reload_payments(monkeypatch,
+                            X402_PAY_TO="0x" + "a" * 40, X402_NETWORK="testnet")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert p.install(FastAPI()) is True

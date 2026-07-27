@@ -71,6 +71,110 @@ def status() -> dict:
     }
 
 
+def _discovery_extension(declare, OutputConfig) -> dict:
+    """Bazaar declaration: input schema, output schema, and a real example.
+
+    Takes its constructors as arguments so this module still imports when the
+    x402 SDK isn't installed (tests, or a deploy that skipped the extra).
+    """
+    ext = declare(
+        input={"days": 14},
+        input_schema={
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer", "minimum": 1, "maximum": 30, "default": 14,
+                    "description": "How far ahead to include fixtures, in days.",
+                }
+            },
+            "additionalProperties": False,
+        },
+        output=OutputConfig(
+            schema={
+                "type": "object",
+                "required": ["generated_at", "count", "fixtures"],
+                "properties": {
+                    "generated_at": {"type": "string", "format": "date-time"},
+                    "window_days": {"type": "integer"},
+                    "count": {"type": "integer"},
+                    "fixtures": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": ["date", "home", "away", "probabilities"],
+                            "properties": {
+                                "league": {"type": "string"},
+                                "league_label": {"type": "string"},
+                                "date": {"type": "string", "format": "date"},
+                                "home": {"type": "string"},
+                                "away": {"type": "string"},
+                                "probabilities": {
+                                    "type": "object",
+                                    "description": ("Calibrated 1X2 probabilities; "
+                                                    "sum to 1."),
+                                    "properties": {
+                                        "home": {"type": "number"},
+                                        "draw": {"type": "number"},
+                                        "away": {"type": "number"},
+                                    },
+                                },
+                                "expected_goals": {
+                                    "type": "object",
+                                    "properties": {
+                                        "home": {"type": "number"},
+                                        "away": {"type": "number"},
+                                    },
+                                },
+                                "markets": {
+                                    "type": "object",
+                                    "description": ("Over/under lines, both-teams-"
+                                                    "to-score and likeliest "
+                                                    "scorelines. Raw model output, "
+                                                    "not calibrated."),
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            example={
+                "generated_at": "2026-08-14T09:00:00+00:00",
+                "window_days": 14,
+                "count": 1,
+                "fixtures": [{
+                    "league": "premier_league",
+                    "league_label": "Premier League",
+                    "date": "2026-08-21",
+                    "home": "Arsenal", "away": "Coventry City",
+                    "probabilities": {"home": 0.66, "draw": 0.20, "away": 0.14},
+                    "expected_goals": {"home": 2.14, "away": 0.71},
+                    "markets": {
+                        "totals": {"2.5": {"over": 0.54, "under": 0.46}},
+                        "btts": {"yes": 0.45, "no": 0.55},
+                        "correct_score": [{"score": "2-0", "p": 0.13}],
+                    },
+                }],
+            },
+        ),
+    )
+    # The SDK validates the declaration at startup but only injects `method`
+    # at request time, so it warns about its own not-yet-enriched value.
+    # This route is always GET, so stating it up front is accurate and keeps
+    # the boot logs clean; the runtime enrichment sets the same value.
+    info = ext["bazaar"]["info"]
+    info["input"]["method"] = "GET"
+    schema_props = ext["bazaar"].get("schema", {}).get("properties", {})
+    inp_schema = schema_props.get("input", {})
+    if isinstance(inp_schema, dict):
+        inp_schema.setdefault("required", [])
+        if "method" not in inp_schema["required"]:
+            inp_schema["required"].append("method")
+        inp_schema.setdefault("properties", {})["method"] = {
+            "type": "string", "const": "GET",
+        }
+    return ext
+
+
 def install(app) -> bool:
     """Attach the x402 middleware. Returns True if payments are active.
 
@@ -90,6 +194,11 @@ def install(app) -> bool:
         return False
 
     try:
+        from x402.extensions.bazaar import (
+            OutputConfig,
+            bazaar_resource_server_extension,
+            declare_discovery_extension,
+        )
         from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
         from x402.http.middleware.fastapi import PaymentMiddlewareASGI
         from x402.http.types import RouteConfig
@@ -104,6 +213,9 @@ def install(app) -> bool:
         HTTPFacilitatorClient(FacilitatorConfig(url=facilitator_url))
     )
     server.register(network, ExactEvmServerScheme())
+    # Injects the HTTP method into the discovery extension at request time —
+    # without it the Bazaar declaration is incomplete and may not index.
+    server.register_extension(bazaar_resource_server_extension)
 
     routes = {
         PAID_ROUTE: RouteConfig(
@@ -122,6 +234,12 @@ def install(app) -> bool:
             ),
             service_name="Sports Predictor",
             tags=["sports", "football", "probabilities", "predictions"],
+            # Bazaar discovery: tells agents how to CALL this endpoint and what
+            # comes back. Coinbase's catalog indexes on a real settlement, and
+            # semantic search ranks on this metadata — a bare URL with no
+            # schema is findable in theory and useless in practice.
+            extensions=_discovery_extension(
+                declare_discovery_extension, OutputConfig),
         )
     }
 
