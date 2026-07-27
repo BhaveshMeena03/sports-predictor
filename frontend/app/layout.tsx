@@ -15,6 +15,8 @@ const geistMono = Geist_Mono({
 
 const SITE = "https://sports-predictor-7nf6.onrender.com";
 const TITLE = "Sports Predictor — predictions scored in public";
+const IMAGE_ALT =
+  "Sports Predictor — 104 matches scored in public, 64.4% accuracy";
 
 // This string is the first thing a reader sees in a link preview or a search
 // result. The old copy said "AI-powered sports betting analysis" — the exact
@@ -25,13 +27,18 @@ const DESCRIPTION =
   "scores it in public — misses included. Machine-payable per call over " +
   "x402 on Base. Informational only, not betting advice.";
 
-// The card itself is app/opengraph-image.png — a committed file, not the
-// generated route it started as. Next writes a generated card to an
-// extensionless path, which Render then serves as binary/octet-stream, and
-// scrapers reject an og:image that does not arrive with an image content
-// type: Farcaster rendered an empty grey box. A real .png extension makes the
-// MIME type correct on any static host. The JSX that produced this image is
-// in git history at commit 8988482 if the numbers ever need updating.
+// The card is served from /og.png — a plain file in public/, referenced
+// explicitly rather than through Next's app/opengraph-image convention.
+//
+// Two problems drove this. The generated route wrote to an extensionless
+// path, which Render served as binary/octet-stream, and scrapers reject an
+// og:image that does not arrive with an image content type. The static
+// convention fixed the MIME type but still appended a build hash as a query
+// string, and a bare path is the shape every scraper handles without
+// question. public/ is copied verbatim, so the URL is stable across builds
+// and cannot pick up a hash again.
+//
+// The JSX that generated this image is in git history at commit 8988482.
 export const metadata: Metadata = {
   // Scrapers reject relative URLs, and static export has no request context to
   // infer an origin from, so the absolute base has to be stated.
@@ -44,11 +51,13 @@ export const metadata: Metadata = {
     url: SITE,
     siteName: "Sports Predictor",
     type: "website",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: IMAGE_ALT }],
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description: DESCRIPTION,
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: IMAGE_ALT }],
   },
 };
 
