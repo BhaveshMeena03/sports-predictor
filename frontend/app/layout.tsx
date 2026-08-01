@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE = "https://sports-predictor-7nf6.onrender.com";
+const SITE = "https://predictor.lexthedev.com";
 const TITLE = "Sports Predictor — predictions scored in public";
 const IMAGE_ALT =
   "Sports Predictor — 104 matches scored in public, 64.4% accuracy";
