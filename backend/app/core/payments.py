@@ -21,6 +21,10 @@ Safety properties
   the paid route free rather than half-configuring a paywall.
 * Testnet by default (Base Sepolia). Real money requires deliberately setting
   X402_NETWORK=mainnet — it is never the fallback.
+* Mainnet additionally requires CDP credentials. Coinbase's facilitator
+  rejects unauthenticated calls (401), so without them the middleware would
+  answer 402 and then fail every verification — a paywall that collects
+  nothing. Mainnet refuses to enable rather than doing that.
 """
 
 import logging
@@ -38,6 +42,11 @@ NETWORK_NAME = os.getenv("X402_NETWORK", "testnet").strip().lower()
 
 PRICE = os.getenv("X402_PRICE", "$0.02").strip()
 
+# Coinbase Developer Platform key, required only on mainnet: the testnet
+# facilitator is open, the mainnet one answers 401 without these.
+CDP_KEY_ID = os.getenv("CDP_API_KEY_ID", "").strip()
+CDP_KEY_SECRET = os.getenv("CDP_API_KEY_SECRET", "").strip()
+
 _NETWORKS = {
     "testnet": ("eip155:84532", "https://x402.org/facilitator"),
     "mainnet": ("eip155:8453", "https://api.cdp.coinbase.com/platform/v2/x402"),
@@ -49,8 +58,20 @@ PAID_ROUTE = "GET /api/v1/probabilities"
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
 
+def _mainnet_ready() -> bool:
+    """Mainnet needs CDP credentials; testnet's facilitator is open.
+
+    Coinbase answers 401 unauthenticated, so without keys the paywall would
+    return 402 and then fail every settlement.
+    """
+    return NETWORK_NAME != "mainnet" or bool(CDP_KEY_ID and CDP_KEY_SECRET)
+
+
 def is_configured() -> bool:
-    return bool(PAY_TO) and _ADDRESS_RE.match(PAY_TO) is not None
+    return (bool(PAY_TO)
+            and _ADDRESS_RE.match(PAY_TO) is not None
+            and NETWORK_NAME in _NETWORKS
+            and _mainnet_ready())
 
 
 def status() -> dict:
@@ -192,6 +213,11 @@ def install(app) -> bool:
         log.error("x402 disabled: X402_NETWORK=%r must be 'testnet' or 'mainnet'.",
                   NETWORK_NAME)
         return False
+    if not _mainnet_ready():
+        log.error("x402 disabled: mainnet needs CDP_API_KEY_ID and "
+                  "CDP_API_KEY_SECRET — Coinbase's facilitator rejects "
+                  "unauthenticated requests. Staying free.")
+        return False
 
     try:
         from x402.extensions.bazaar import (
@@ -199,7 +225,12 @@ def install(app) -> bool:
             bazaar_resource_server_extension,
             declare_discovery_extension,
         )
-        from x402.http import FacilitatorConfig, HTTPFacilitatorClient, PaymentOption
+        from x402.http import (
+            CreateHeadersAuthProvider,
+            FacilitatorConfig,
+            HTTPFacilitatorClient,
+            PaymentOption,
+        )
         from x402.http.middleware.fastapi import PaymentMiddlewareASGI
         from x402.http.types import RouteConfig
         from x402.mechanisms.evm.exact import ExactEvmServerScheme
@@ -209,9 +240,39 @@ def install(app) -> bool:
         return False
 
     network, facilitator_url = _NETWORKS[NETWORK_NAME]
-    server = x402ResourceServer(
-        HTTPFacilitatorClient(FacilitatorConfig(url=facilitator_url))
-    )
+
+    # Testnet's facilitator is open; mainnet's is Coinbase CDP and needs
+    # signed headers on every call. The SDK takes a create_headers callable
+    # in CDP's own shape, so the credentials never leave this process.
+    cfg = FacilitatorConfig(url=facilitator_url)
+    if NETWORK_NAME == "mainnet":
+        try:
+            from cdp.auth.utils.http import GetAuthHeadersOptions, get_auth_headers
+        except ImportError as e:
+            log.error("x402 disabled: mainnet needs the cdp-sdk for facilitator "
+                      "auth (%s). pip install cdp-sdk", e)
+            return False
+
+        def _cdp_headers() -> dict:
+            # Re-signed per call: CDP's JWTs are short-lived, so caching them
+            # would start failing quietly a couple of minutes in.
+            def sign(path: str) -> dict:
+                return get_auth_headers(GetAuthHeadersOptions(
+                    api_key_id=CDP_KEY_ID,
+                    api_key_secret=CDP_KEY_SECRET,
+                    request_method="POST",
+                    request_host="api.cdp.coinbase.com",
+                    request_path=f"/platform/v2/x402/{path}",
+                ))
+            return {"verify": sign("verify"), "settle": sign("settle"),
+                    "supported": sign("supported"), "bazaar": sign("discovery/resources")}
+
+        cfg = FacilitatorConfig(
+            url=facilitator_url,
+            auth_provider=CreateHeadersAuthProvider(_cdp_headers),
+        )
+
+    server = x402ResourceServer(HTTPFacilitatorClient(cfg))
     server.register(network, ExactEvmServerScheme())
     # Injects the HTTP method into the discovery extension at request time —
     # without it the Bazaar declaration is incomplete and may not index.

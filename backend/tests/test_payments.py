@@ -6,6 +6,9 @@ Two properties matter more than the happy path:
    missing address means "payments off", never "collect to nowhere".
 2. Testnet is the default. A typo in X402_NETWORK must never resolve to
    mainnet and start moving real money.
+3. Mainnet without CDP credentials must stay OFF. Coinbase's facilitator
+   answers 401 unauthenticated, so enabling would return 402 and then fail
+   every settlement — charging for something undeliverable.
 """
 
 import importlib
@@ -14,7 +17,8 @@ import pytest
 
 
 def reload_payments(monkeypatch, **env):
-    for k in ("X402_PAY_TO", "X402_NETWORK", "X402_PRICE"):
+    for k in ("X402_PAY_TO", "X402_NETWORK", "X402_PRICE",
+              "CDP_API_KEY_ID", "CDP_API_KEY_SECRET"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -144,3 +148,28 @@ class TestBazaarDiscovery:
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             assert p.install(FastAPI()) is True
+
+
+class TestMainnetNeedsCredentials:
+    """Coinbase's facilitator rejects unauthenticated calls (verified: 401).
+    Enabling mainnet without keys would answer 402 and then fail to settle,
+    which is worse than staying free — the caller pays for nothing."""
+
+    ADDR = "0x" + "a" * 40
+
+    def test_mainnet_without_cdp_keys_stays_off(self, monkeypatch):
+        p = reload_payments(monkeypatch, X402_PAY_TO=self.ADDR,
+                            X402_NETWORK="mainnet")
+        assert p.is_configured() is False
+
+    def test_mainnet_with_only_one_key_stays_off(self, monkeypatch):
+        p = reload_payments(monkeypatch, X402_PAY_TO=self.ADDR,
+                            X402_NETWORK="mainnet", CDP_API_KEY_ID="id-only")
+        assert p.is_configured() is False
+
+    def test_testnet_never_requires_cdp_keys(self, monkeypatch):
+        # The open facilitator needs no auth; requiring keys here would break
+        # the working setup for no reason.
+        p = reload_payments(monkeypatch, X402_PAY_TO=self.ADDR,
+                            X402_NETWORK="testnet")
+        assert p.status()["chain"] == "eip155:84532"
