@@ -1,3 +1,4 @@
+import pathlib
 """x402 payment gating.
 
 Two properties matter more than the happy path:
@@ -173,3 +174,29 @@ class TestMainnetNeedsCredentials:
         p = reload_payments(monkeypatch, X402_PAY_TO=self.ADDR,
                             X402_NETWORK="testnet")
         assert p.status()["chain"] == "eip155:84532"
+
+
+class TestCDPEndpointMethods:
+    """The 401 that took mainnet down: every endpoint was signed as POST.
+
+    CDP puts the method and path inside the JWT, so /supported — a GET —
+    rejected the signature. It is the first call the resource server makes,
+    so the whole paid route 500s rather than degrading. Pin the map.
+    """
+
+    def test_supported_and_bazaar_are_get(self):
+        import re
+        src = (pathlib.Path(__file__).parents[1] / "app/core/payments.py").read_text()
+        block = re.search(r"_ENDPOINTS = \{(.*?)\}", src, re.S).group(1)
+        for name, method, path in [
+            ("verify", "POST", "/platform/v2/x402/verify"),
+            ("settle", "POST", "/platform/v2/x402/settle"),
+            ("supported", "GET", "/platform/v2/x402/supported"),
+            ("bazaar", "GET", "/platform/v2/x402/discovery/resources"),
+        ]:
+            assert f'"{name}": ("{method}", "{path}")' in block, f"{name} wrong"
+
+    def test_method_is_not_hardcoded(self):
+        src = (pathlib.Path(__file__).parents[1] / "app/core/payments.py").read_text()
+        assert 'request_method="POST"' not in src
+        assert "request_method=method" in src

@@ -253,19 +253,30 @@ def install(app) -> bool:
                       "auth (%s). pip install cdp-sdk", e)
             return False
 
+        # CDP signs the method and path into the JWT, so each endpoint needs
+        # its own signature with the method the SDK actually uses. Signing
+        # everything as POST returns 401 on /supported, which is a GET —
+        # and /supported is called first, so the whole route 500s.
+        _ENDPOINTS = {
+            "verify": ("POST", "/platform/v2/x402/verify"),
+            "settle": ("POST", "/platform/v2/x402/settle"),
+            "supported": ("GET", "/platform/v2/x402/supported"),
+            "bazaar": ("GET", "/platform/v2/x402/discovery/resources"),
+        }
+
         def _cdp_headers() -> dict:
             # Re-signed per call: CDP's JWTs are short-lived, so caching them
             # would start failing quietly a couple of minutes in.
-            def sign(path: str) -> dict:
-                return get_auth_headers(GetAuthHeadersOptions(
+            return {
+                name: get_auth_headers(GetAuthHeadersOptions(
                     api_key_id=CDP_KEY_ID,
                     api_key_secret=CDP_KEY_SECRET,
-                    request_method="POST",
+                    request_method=method,
                     request_host="api.cdp.coinbase.com",
-                    request_path=f"/platform/v2/x402/{path}",
+                    request_path=path,
                 ))
-            return {"verify": sign("verify"), "settle": sign("settle"),
-                    "supported": sign("supported"), "bazaar": sign("discovery/resources")}
+                for name, (method, path) in _ENDPOINTS.items()
+            }
 
         cfg = FacilitatorConfig(
             url=facilitator_url,
