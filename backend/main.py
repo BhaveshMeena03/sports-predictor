@@ -6,7 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router
 from app.core.database import init_db
 from app.core import payments
-from app.core.security import ADMIN_TOKEN, cors_origins
+from app.core.security import (
+    ADMIN_TOKEN,
+    PUBLIC_BASE_URL,
+    CanonicalOriginMiddleware,
+    SecurityHeadersMiddleware,
+    cors_origins,
+)
 from app.services.scheduler import start_scheduler, shutdown_scheduler
 
 
@@ -49,6 +55,15 @@ app.add_middleware(
 # x402 payment middleware. No-ops unless X402_PAY_TO is set, so an
 # unconfigured deploy serves the slate free rather than half-paywalled.
 payments.install(app)
+
+# Added AFTER the paywall on purpose. Starlette runs the most recently added
+# middleware outermost, so these two see the request first — which is the whole
+# point: the paywall builds its payment challenge from the request scheme and
+# host, and must not see the caller's unfiltered version of either.
+if PUBLIC_BASE_URL:
+    app.add_middleware(CanonicalOriginMiddleware, base_url=PUBLIC_BASE_URL)
+app.add_middleware(SecurityHeadersMiddleware,
+                   hsts=PUBLIC_BASE_URL.startswith("https://"))
 
 app.include_router(router, prefix="/api")
 

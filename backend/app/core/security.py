@@ -36,17 +36,45 @@ LLM_GLOBAL_RPM = int(os.getenv("LLM_GLOBAL_RPM", "20"))
 LLM_RPM = int(os.getenv("LLM_RPM", "5"))
 
 
-def _client_ip(request: Request) -> str:
-    """Best-effort client IP.
+# A header the edge proxy sets itself and overwrites on the way in, so a client
+# cannot forge it. "fly-client-ip" on Fly; set to "" to disable, or to the
+# equivalent header on another host.
+TRUSTED_CLIENT_IP_HEADER = os.getenv(
+    "TRUSTED_CLIENT_IP_HEADER", "fly-client-ip").strip().lower()
 
-    Only trusts X-Forwarded-For when TRUST_PROXY=1, because the header is
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP, resistant to a forged X-Forwarded-For.
+
+    Only consults proxy headers when TRUST_PROXY=1, because they are
     attacker-controlled otherwise — a spoofed value would hand every request a
     fresh rate-limit bucket and defeat the limiter entirely.
+
+    Trusting the header was not sufficient on its own. Proxies APPEND to
+    X-Forwarded-For, so a caller who sends one of their own lands first in the
+    list and the real address is appended after it. Reading entry [0] — which
+    this did — let the caller pick their own bucket key. Measured against
+    production before the fix: 35 requests carrying a fixed spoofed value hit
+    the limit at exactly 30, while 35 requests each carrying a different
+    spoofed value never hit it at all.
+
+    So: prefer the proxy's own header, and otherwise take the RIGHTMOST
+    X-Forwarded-For entry — appended by the nearest trusted proxy, and the one
+    entry a client cannot write past.
+
+    The global RPM ceiling and the daily budget were never affected by this.
+    They do not key on identity, which is exactly why they are the real cap on
+    spend rather than a nicety.
     """
     if os.getenv("TRUST_PROXY") == "1":
+        if TRUSTED_CLIENT_IP_HEADER:
+            direct = request.headers.get(TRUSTED_CLIENT_IP_HEADER, "").strip()
+            if direct:
+                return direct
         fwd = request.headers.get("x-forwarded-for", "")
-        if fwd:
-            return fwd.split(",")[0].strip()
+        hops = [h.strip() for h in fwd.split(",") if h.strip()]
+        if hops:
+            return hops[-1]
     return request.client.host if request.client else "unknown"
 
 
@@ -211,3 +239,98 @@ def cors_origins() -> list[str]:
     raw = os.getenv("CORS_ORIGINS", "")
     origins = [o.strip() for o in raw.split(",") if o.strip() and o.strip() != "*"]
     return origins or ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+
+# The canonical public origin, e.g. "https://sports-predictor-api.fly.dev".
+# When set, every request is treated as having arrived there regardless of what
+# the caller's headers claim. See CanonicalOriginMiddleware for why.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+
+
+class CanonicalOriginMiddleware:
+    """Pin the request's scheme and host to the configured public origin.
+
+    Why this is not paranoia. FastAPI builds absolute URLs from the request
+    scheme and the Host header, and x402 puts that URL into the payment
+    challenge as the resource being sold. Both inputs are attacker-controlled
+    on a deploy that trusts proxy headers, which ours must because Fly
+    terminates TLS. Verified against production before this existed:
+
+        Host: evil.example       -> resource https://evil.example/api/v1/...
+        X-Forwarded-Proto: http  -> resource http://sports-predictor-api...
+
+    The first hands a caller a challenge naming a resource we do not serve;
+    the second advertises a plaintext URL for an endpoint that takes payment.
+    Neither steals funds directly, but the resource URL is what a paying agent
+    follows and what Coinbase records when a payment settles, so letting a
+    stranger choose it is not something to leave running.
+
+    Rewriting rather than rejecting: platform health checks reach the machine
+    by an internal name, and a strict Host allowlist would fail them. Pinning
+    normalises those instead of 400ing, and makes the advertised resource URL
+    deterministic — the same string for every caller, which is also what the
+    Bazaar listing needs.
+
+    X-Forwarded-For is deliberately left alone: the rate limiter reads it to
+    identify clients, and it is gated separately by TRUST_PROXY.
+    """
+
+    _STRIP = (b"x-forwarded-proto", b"x-forwarded-host", b"x-forwarded-scheme")
+
+    def __init__(self, app, base_url: str):
+        from urllib.parse import urlparse
+
+        parsed = urlparse(base_url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError(
+                f"PUBLIC_BASE_URL must be an absolute URL like "
+                f"https://api.example.com — got {base_url!r}"
+            )
+        self.app = app
+        self.scheme = parsed.scheme
+        self.host = parsed.netloc.encode()
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            scope["scheme"] = self.scheme
+            headers = [(k, v) for k, v in scope["headers"]
+                       if k.lower() not in self._STRIP and k.lower() != b"host"]
+            headers.append((b"host", self.host))
+            scope["headers"] = headers
+        await self.app(scope, receive, send)
+
+
+class SecurityHeadersMiddleware:
+    """Response headers that cost nothing and close off whole bug classes.
+
+    nosniff stops a browser second-guessing our JSON content type; DENY stops
+    the API being framed; HSTS keeps a browser from ever retrying over http.
+    No CSP: this process serves JSON, not pages, and a CSP here would be
+    decoration.
+    """
+
+    def __init__(self, app, hsts: bool = True):
+        self.app = app
+        self.hsts = hsts
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                headers = message.setdefault("headers", [])
+                present = {k.lower() for k, _ in headers}
+                extra = [
+                    (b"x-content-type-options", b"nosniff"),
+                    (b"x-frame-options", b"DENY"),
+                    (b"referrer-policy", b"no-referrer"),
+                ]
+                if self.hsts:
+                    extra.append((b"strict-transport-security",
+                                  b"max-age=31536000; includeSubDomains"))
+                headers.extend((k, v) for k, v in extra if k not in present)
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
