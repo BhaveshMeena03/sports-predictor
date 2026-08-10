@@ -13,7 +13,8 @@ WORKDIR /app
 # Layer-cache the dependency install; scipy/numpy ship manylinux wheels so no
 # build toolchain is needed.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY main.py .

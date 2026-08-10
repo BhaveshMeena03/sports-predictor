@@ -1,9 +1,11 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.0
+# Floors, not pins, on the web stack: fastapi 0.115.0 held starlette at 0.38.6,
+# which pip-audit flags for 8 advisories. 0.121+ resolves starlette >=1.x.
+fastapi>=0.121.0
+uvicorn[standard]>=0.34.0
 anthropic==0.40.0
 httpx==0.27.0
 aiohttp>=3.11.16
-python-dotenv==1.0.1
+python-dotenv>=1.2.2  # 1.0.1: PYSEC-2026-2270
 pydantic>=2.10.3,<3
 sqlite-utils==3.37
 aiosqlite==0.20.0
