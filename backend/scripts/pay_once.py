@@ -83,7 +83,7 @@ async def main() -> int:
     from eth_account import Account
     from x402 import x402Client
     from x402.http.clients import x402HttpxClient
-    from x402.mechanisms.evm.signers import register_exact_evm_client
+    from x402.mechanisms.evm.exact.client import ExactEvmScheme
 
     account = Account.from_key(key)
     balance = _usdc_balance(account.address)
@@ -121,7 +121,10 @@ async def main() -> int:
         return 0
 
     client = x402Client()
-    register_exact_evm_client(client, account)
+    # ExactEvmScheme auto-wraps an eth_account LocalAccount, so the account
+    # goes straight in. Registered against the network the challenge names,
+    # not a constant, so this still works if the server moves chains.
+    client.register(accept["network"], ExactEvmScheme(account))
 
     async with x402HttpxClient(client, timeout=90) as paid:
         resp = await paid.get(args.resource)
