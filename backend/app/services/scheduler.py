@@ -82,6 +82,19 @@ async def refresh_models() -> dict:
         log.warning("scheduled clubs update failed: %s", e)
         summary["steps"]["clubs_daily_update"] = f"error: {e}"
 
+    # 3b) Write predictions for fixtures that have NOT been played yet.
+    #     Runs AFTER the ingest above so it predicts with ratings that include
+    #     everything already finished, and it is what makes the log a forward
+    #     record rather than a backtest. Idempotent: a fixture already carrying
+    #     a standing prediction is never overwritten.
+    try:
+        from app.services.club_service import prelog_upcoming_clubs
+        r = await prelog_upcoming_clubs(days_ahead=7)
+        summary["steps"]["clubs_prelog"] = {k: len(v) for k, v in r.items()}
+    except Exception as e:
+        log.warning("scheduled club prelog failed: %s", e)
+        summary["steps"]["clubs_prelog"] = f"error: {e}"
+
     # 4) Calibration keeps learning: once a league has enough LIVE scored
     #    matches, refit its alpha from the live log (raw vectors — fitting on
     #    served probabilities would compose with the alpha already applied).

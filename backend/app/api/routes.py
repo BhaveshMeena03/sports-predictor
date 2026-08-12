@@ -843,6 +843,16 @@ async def clubs_daily_update(days_back: int = 3):
     return await daily_update_clubs(days_back=days_back)
 
 
+@router.post("/clubs/prelog", dependencies=ADMIN)
+async def clubs_prelog(days_ahead: int = 7):
+    """Write predictions for upcoming fixtures, before they are played.
+
+    Normally the nightly scheduler does this. Exposed for the first run of a
+    season and for backfilling after downtime."""
+    from app.services.club_service import prelog_upcoming_clubs
+    return await prelog_upcoming_clubs(days_ahead=days_ahead)
+
+
 @router.get("/worldcup/predict2")
 async def worldcup_predict2(home: str, away: str, neutral: bool = True):
     """v2 draw-aware prediction: Elo->Poisson goals bridge + calibration layer
@@ -900,35 +910,61 @@ async def worldcup_simulate(n_sims: int = 10000, seed: int = None, groups_json: 
 
 @router.get("/trackrecord")
 async def trackrecord():
-    """The live prediction log — the part a backtest can't fake.
+    """The prediction log, with each row's provenance stated rather than assumed.
 
-    Every row was written BEFORE kickoff by the daily pipeline, then scored
-    when the result arrived (predict -> log -> score; ratings update after).
-    World Cup 2026 is complete (104 matches incl. the final); the club log
-    fills the same way once the 2026-27 season starts. Public, read-only.
+    Two kinds of row live here and the difference matters:
+
+      prelogged=1  the probabilities were written BEFORE kickoff and the
+                   result was filled in afterwards. A genuine forward
+                   prediction; nothing about it can be revised in hindsight.
+      prelogged=0  the probabilities were generated when the result was
+                   ingested. Still walk-forward -- the model had not seen that
+                   match, and Elo updates only after the row is scored -- but
+                   it is a backtest of that match, not a forward call.
+
+    Every World Cup row is prelogged=0, because pre-kickoff logging did not
+    exist while that tournament was running. Saying so is the point: a record
+    that overstates how it was produced is worth less than a smaller honest
+    one. Club rows from the 2026-27 season onwards are pre-logged.
+
+    Public, read-only.
     """
     out = {}
     async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         for key, table, extra in (("world_cup", "wc_match_log", ""),
                                   ("clubs", "club_match_log", ", league")):
+            # wc_match_log predates the prelogged column and has none, so
+            # select it only where it exists rather than failing the whole read.
+            has_prelog = key == "clubs"
+            cols = ("date, home, away, home_goals, away_goals, p_home, p_draw, "
+                    "p_away, picked, correct, brier")
+            if has_prelog:
+                cols += ", prelogged"
             try:
                 rows = await (await db.execute(
-                    f"SELECT date, home, away, home_goals, away_goals, "  # noqa: S608
-                    f"p_home, p_draw, p_away, picked, correct, brier{extra} "
-                    f"FROM {table} ORDER BY date DESC")).fetchall()
+                    f"SELECT {cols}{extra} FROM {table} ORDER BY date DESC"  # noqa: S608
+                )).fetchall()
             except Exception:
                 rows = []
             matches = [dict(r) for r in rows]
+            for m in matches:
+                m.setdefault("prelogged", 0)
             scored = [m for m in matches if m["brier"] is not None]
+            pre = [m for m in scored if m["prelogged"]]
             out[key] = {
-                "basis": "live_prekickoff_log",
+                "basis": ("mixed" if pre and len(pre) < len(scored)
+                          else "prekickoff" if pre else "walk_forward_backtest"),
+                "pending": sum(1 for m in matches if m["brier"] is None),
                 "matches": matches,
                 "summary": {
                     "n": len(scored),
+                    "prelogged": len(pre),
                     "picked_correct": sum(1 for m in scored if m["correct"]),
                     "avg_brier": round(sum(m["brier"] for m in scored) / len(scored), 4)
                     if scored else None,
+                    "avg_brier_prelogged": round(
+                        sum(m["brier"] for m in pre) / len(pre), 4) if pre else None,
                 },
             }
     return out

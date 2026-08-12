@@ -141,6 +141,17 @@ async def _ensure_tables():
         for col in ("p_home_raw", "p_draw_raw", "p_away_raw"):
             if col not in cols:
                 await db.execute(f"ALTER TABLE club_match_log ADD COLUMN {col} REAL")
+        # Whether this row's probabilities were written before kickoff or
+        # generated at ingest, after the result was already known. Both are
+        # walk-forward, but only the first is a genuine forward prediction and
+        # the track record must not claim otherwise. Existing rows default to
+        # 0 because that is what they are.
+        if "prelogged" not in cols:
+            await db.execute(
+                "ALTER TABLE club_match_log ADD COLUMN prelogged INTEGER DEFAULT 0")
+        if "predicted_at" not in cols:
+            await db.execute(
+                "ALTER TABLE club_match_log ADD COLUMN predicted_at TEXT")
         await db.commit()
 
 
@@ -370,6 +381,66 @@ async def validate_espn_names(days_back: int = 14) -> dict:
     return report
 
 
+async def prelog_upcoming_clubs(days_ahead: int = 7) -> dict:
+    """Write predictions for fixtures that have NOT been played yet.
+
+    This is what makes the track record a forward record rather than a
+    backtest. Until this existed, both ingest paths skipped anything not
+    already completed and generated the probabilities at scoring time, so no
+    row had ever been written before its match kicked off. The methodology was
+    still walk-forward -- predict, then update Elo, oldest day first -- but
+    "we predicted this in advance" was a claim the data could not support.
+
+    Rows land with NULL goals and NULL brier. daily_update_clubs fills those
+    in later using the probabilities stored here, never a fresh prediction.
+
+    Idempotent: a fixture already in the log, pre-logged or scored, is left
+    alone. Re-running this must never overwrite a standing prediction, or the
+    record becomes editable after the fact, which is the whole thing it exists
+    to rule out.
+    """
+    await _ensure_tables()
+    from app.services.ask import upcoming_fixtures
+
+    fixtures = await upcoming_fixtures(days=days_ahead)
+    now = datetime.now(timezone.utc).isoformat()
+    added: dict[str, list[str]] = {k: [] for k in LEAGUES}
+
+    for f in fixtures:
+        league_key = f.get("league")
+        if league_key not in LEAGUES:
+            continue
+        home, away, date = f.get("home"), f.get("away"), f.get("date")
+        if not (home and away and date):
+            continue
+        async with db_connect(DB_PATH) as db:
+            cur = await db.execute(
+                "SELECT 1 FROM club_match_log WHERE league=? AND date=? AND home=? AND away=?",
+                (league_key, date, home, away))
+            if await cur.fetchone():
+                continue
+        try:
+            p = await predict_club(league_key, home, away)
+        except Exception as e:
+            log.warning("prelog %s %s v %s failed: %s", league_key, home, away, e)
+            continue
+        probs = [p["p_home"], p["p_draw"], p["p_away"]]
+        labels = [home, "Draw", away]
+        picked = labels[max(range(3), key=lambda i: probs[i])]
+        raw = p.get("raw", probs)
+        async with db_connect(DB_PATH) as db:
+            await db.execute(
+                """INSERT OR IGNORE INTO club_match_log
+                   (league,date,home,away,home_goals,away_goals,
+                    p_home,p_draw,p_away,picked,correct,brier,
+                    p_home_raw,p_draw_raw,p_away_raw,prelogged,predicted_at)
+                   VALUES (?,?,?,?,NULL,NULL,?,?,?,?,NULL,NULL,?,?,?,1,?)""",
+                (league_key, date, home, away, *probs, picked, *raw, now))
+            await db.commit()
+        added[league_key].append(f"{home} v {away} ({date})")
+    return added
+
+
 async def daily_update_clubs(days_back: int = 3) -> dict:
     """In-season ritual: ingest finished PL/La Liga matches, score the model,
     update league Elo. Idempotent via club_match_log primary key."""
@@ -390,12 +461,22 @@ async def daily_update_clubs(days_back: int = 3) -> dict:
             for m in day:
                 if not m["completed"] or m["home_score"] is None:
                     continue
+                # A row already here is either scored (skip) or a standing
+                # pre-kickoff prediction (score it with the probabilities it
+                # was written with -- re-predicting now would quietly convert
+                # a forward prediction into a hindsight one).
                 async with db_connect(DB_PATH) as db:
                     cur = await db.execute(
-                        "SELECT 1 FROM club_match_log WHERE league=? AND date=? AND home=? AND away=?",
+                        """SELECT brier, p_home, p_draw, p_away, prelogged
+                           FROM club_match_log
+                           WHERE league=? AND date=? AND home=? AND away=?""",
                         (league_key, m["date"], m["home"], m["away"]))
-                    if await cur.fetchone():
-                        continue
+                    existing = await cur.fetchone()
+                if existing is not None and existing[0] is not None:
+                    continue  # already scored
+                standing = None
+                if existing is not None:
+                    standing = [existing[1], existing[2], existing[3]]
                 unknown = [t for t in (m["home"], m["away"]) if t not in known]
                 if unknown:
                     # Not fatal (predict_v2 falls back to a default rating), but
@@ -403,8 +484,12 @@ async def daily_update_clubs(days_back: int = 3) -> dict:
                     log.error("%s %s: unmapped team(s) %s — prediction will use "
                               "default Elo; add to ESPN_NAME_MAP",
                               league_key, m["date"], unknown)
-                p = await predict_club(league_key, m["home"], m["away"])
-                probs = [p["p_home"], p["p_draw"], p["p_away"]]
+                if standing is not None:
+                    probs = standing
+                    p = {"raw": standing}
+                else:
+                    p = await predict_club(league_key, m["home"], m["away"])
+                    probs = [p["p_home"], p["p_draw"], p["p_away"]]
                 idx = 0 if m["home_score"] > m["away_score"] else (2 if m["home_score"] < m["away_score"] else 1)
                 actual = [0.0, 0.0, 0.0]; actual[idx] = 1.0
                 pick_i = max(range(3), key=lambda i: probs[i])
@@ -414,16 +499,30 @@ async def daily_update_clubs(days_back: int = 3) -> dict:
                                              m["home_score"], m["away_score"])
                 raw = p.get("raw", probs)
                 async with db_connect(DB_PATH) as db:
-                    await db.execute(
-                        """INSERT OR IGNORE INTO club_match_log
-                           (league,date,home,away,home_goals,away_goals,
-                            p_home,p_draw,p_away,picked,correct,brier,
-                            p_home_raw,p_draw_raw,p_away_raw)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                        (league_key, m["date"], m["home"], m["away"],
-                         m["home_score"], m["away_score"], *probs,
-                         labels[pick_i], 1 if pick_i == idx else 0, round(brier, 4),
-                         *raw))
+                    if standing is not None:
+                        # Fill in the result only. The probabilities, the pick
+                        # and prelogged stay exactly as written before kickoff.
+                        await db.execute(
+                            """UPDATE club_match_log
+                               SET home_goals=?, away_goals=?, correct=?, brier=?
+                               WHERE league=? AND date=? AND home=? AND away=?""",
+                            (m["home_score"], m["away_score"],
+                             1 if pick_i == idx else 0, round(brier, 4),
+                             league_key, m["date"], m["home"], m["away"]))
+                    else:
+                        # No standing prediction: the pipeline was down, or the
+                        # fixture appeared late. Still worth logging, but marked
+                        # prelogged=0 so the record does not overstate itself.
+                        await db.execute(
+                            """INSERT OR IGNORE INTO club_match_log
+                               (league,date,home,away,home_goals,away_goals,
+                                p_home,p_draw,p_away,picked,correct,brier,
+                                p_home_raw,p_draw_raw,p_away_raw,prelogged)
+                               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)""",
+                            (league_key, m["date"], m["home"], m["away"],
+                             m["home_score"], m["away_score"], *probs,
+                             labels[pick_i], 1 if pick_i == idx else 0,
+                             round(brier, 4), *raw))
                     await db.commit()
                 new.append(f'{m["home"]} {m["home_score"]}-{m["away_score"]} {m["away"]}')
         summary[league_key] = new

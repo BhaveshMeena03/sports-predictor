@@ -148,7 +148,24 @@ async def main() -> int:
         print("so re-check the listing in a few minutes.")
         return 0
 
-    print(f"  body: {resp.text[:300]}", file=sys.stderr)
+    # A 402 here means the payment was built and sent but declined. The reason
+    # travels in the challenge header of the refusal, not the body -- which is
+    # empty by design in x402 v2 -- so print it rather than the empty body.
+    raw2 = resp.headers.get("payment-required", "")
+    if raw2:
+        try:
+            d2 = json.loads(base64.b64decode(raw2 + "=" * (-len(raw2) % 4)))
+            print(f"  declined : {d2.get('error')!r}", file=sys.stderr)
+            for k in ("errorCode", "reason", "detail", "message"):
+                if d2.get(k):
+                    print(f"  {k:9s}: {d2[k]!r}", file=sys.stderr)
+        except Exception as e:
+            print(f"  (could not decode the refusal header: {e})", file=sys.stderr)
+    for h in ("x-payment-error", "payment-response", "x-payment-response"):
+        if resp.headers.get(h):
+            print(f"  {h}: {resp.headers[h][:200]}", file=sys.stderr)
+    if not raw2:
+        print(f"  body: {resp.text[:300]}", file=sys.stderr)
     return 1
 
 
