@@ -200,3 +200,32 @@ class TestPrelogThenScore:
 
 async def _async(value):
     return value
+
+
+class TestBasisLabel:
+    """basis must describe the log as it is, including before any result lands."""
+
+    def test_only_standing_predictions_reads_as_prekickoff(self):
+        matches = [{"prelogged": 1, "brier": None}, {"prelogged": 1, "brier": None}]
+        assert _basis(matches) == "prekickoff"
+
+    def test_only_ingest_time_rows_read_as_backtest(self):
+        assert _basis([{"prelogged": 0, "brier": 0.1}]) == "walk_forward_backtest"
+
+    def test_a_mix_says_mixed(self):
+        assert _basis([{"prelogged": 1, "brier": None},
+                       {"prelogged": 0, "brier": 0.1}]) == "mixed"
+
+    def test_empty_log(self):
+        assert _basis([]) == "empty"
+
+
+def _basis(matches):
+    """Mirrors the expression in /api/trackrecord."""
+    if not matches:
+        return "empty"
+    if all(m["prelogged"] for m in matches):
+        return "prekickoff"
+    if not any(m["prelogged"] for m in matches):
+        return "walk_forward_backtest"
+    return "mixed"

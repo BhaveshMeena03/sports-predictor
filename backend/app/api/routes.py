@@ -953,8 +953,14 @@ async def trackrecord():
             scored = [m for m in matches if m["brier"] is not None]
             pre = [m for m in scored if m["prelogged"]]
             out[key] = {
-                "basis": ("mixed" if pre and len(pre) < len(scored)
-                          else "prekickoff" if pre else "walk_forward_backtest"),
+                # Judged over ALL rows, not just scored ones: a log holding
+                # only standing pre-kickoff predictions is a pre-kickoff log,
+                # even before the first result lands.
+                "basis": (
+                    "empty" if not matches
+                    else "prekickoff" if all(m["prelogged"] for m in matches)
+                    else "walk_forward_backtest" if not any(m["prelogged"] for m in matches)
+                    else "mixed"),
                 "pending": sum(1 for m in matches if m["brier"] is None),
                 "matches": matches,
                 "summary": {
