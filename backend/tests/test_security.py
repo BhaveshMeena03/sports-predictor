@@ -150,3 +150,66 @@ class TestRoutesAreGuarded:
 
     def test_public_read_still_works(self, client):
         assert client.get("/api/health").status_code == 200
+
+
+class TestPerClientLLMBudget:
+    """One caller must not be able to spend the whole day's model budget.
+
+    The per-minute limiter caps rate, not total: at 5/min a patient script
+    drains the 300/day LLM budget in an hour with every request legal on the
+    way, and every other visitor is refused until UTC midnight.
+    """
+
+    def _req(self, ip: str):
+        from starlette.requests import Request
+
+        return Request({"type": "http", "headers": [], "client": (ip, 1234),
+                        "method": "POST", "path": "/api/ask", "scheme": "https"})
+
+    def test_one_client_is_capped(self):
+        from app.core.security import PerClientDailyBudget
+
+        b = PerClientDailyBudget(limit=3)
+        for _ in range(3):
+            asyncio.run(b(self._req("1.2.3.4")))
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(b(self._req("1.2.3.4")))
+        assert exc.value.status_code == 429
+        assert "midnight" in exc.value.detail.lower()
+
+    def test_a_drained_client_does_not_block_others(self):
+        """The point of the cap: an abuser must not deny everyone else."""
+        from app.core.security import PerClientDailyBudget
+
+        b = PerClientDailyBudget(limit=2)
+        for _ in range(2):
+            asyncio.run(b(self._req("9.9.9.9")))
+        with pytest.raises(HTTPException):
+            asyncio.run(b(self._req("9.9.9.9")))
+        asyncio.run(b(self._req("5.5.5.5")))    # unaffected
+
+    def test_zero_disables(self):
+        from app.core.security import PerClientDailyBudget
+
+        b = PerClientDailyBudget(limit=0)
+        for _ in range(50):
+            asyncio.run(b(self._req("1.2.3.4")))
+
+    def test_client_table_is_bounded(self):
+        """The key is attacker-controlled, so it must not grow without limit."""
+        from app.core.security import PerClientDailyBudget
+
+        b = PerClientDailyBudget(limit=5)
+        b.MAX_CLIENTS = 40
+        for i in range(300):
+            asyncio.run(b(self._req(f"10.0.{i // 256}.{i % 256}")))
+        assert len(b._counts) <= 40
+
+    def test_paid_routes_carry_the_dependency(self):
+        """A new model-backed route must not miss the cap by omission."""
+        import pathlib
+
+        src = (pathlib.Path(__file__).parents[1] / "app/api/routes.py").read_text()
+        assert "Depends(llm_per_client)" in src
+        line = next(ln for ln in src.splitlines() if ln.startswith("PAID ="))
+        assert "llm_per_client" in line

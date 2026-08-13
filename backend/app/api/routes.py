@@ -9,7 +9,8 @@ from app.models.schemas import (
 )
 from app.core.config import settings
 from app.core.database import connect as db_connect, DB_PATH
-from app.core.security import is_owner, llm_daily_budget, llm_limit, public_limit, require_admin
+from app.core.security import (is_owner, llm_daily_budget, llm_limit,
+                               llm_per_client, public_limit, require_admin)
 from app.services.ai_analyzer import ai_analyzer
 from app.services.football_service import football_service, LEAGUE_IDS
 from app.services.odds_service import odds_service
@@ -29,7 +30,7 @@ router = APIRouter(dependencies=[Depends(public_limit)])
 # Endpoints that mutate state, rebuild models, or run paid backtests.
 ADMIN = [Depends(require_admin)]
 # Endpoints that call the LLM analyst: per-IP AND global caps bound the spend.
-PAID = [Depends(llm_limit), Depends(llm_daily_budget)]
+PAID = [Depends(llm_limit), Depends(llm_daily_budget), Depends(llm_per_client)]
 
 
 @router.get("/health")

@@ -220,6 +220,69 @@ class DailyBudget:
         self._used += 1
 
 
+class PerClientDailyBudget:
+    """A daily ceiling on model-backed requests from a SINGLE client.
+
+    llm_daily_budget bounds what the service spends; nothing bounded what one
+    caller could spend of it. The per-minute limiter does not help -- it caps
+    rate, not total -- so a patient script sitting exactly on 5/min drains the
+    whole 300/day budget in an hour, every request legal on the way, and every
+    genuine visitor is refused until UTC midnight.
+
+    The cap is far above human behaviour: a person exploring the analyzer might
+    make ten or twenty calls in a day, so only automation should ever meet it.
+    Draining the service now needs a spread of addresses rather than one, and
+    the log line names the client when a cap is hit.
+
+    In-memory and per-process, matching the other limiters. With a second
+    replica this needs a shared store, or each replica grants its own
+    allowance.
+    """
+
+    MAX_CLIENTS = 20_000  # bounded: the key is attacker-controlled
+
+    def __init__(self, limit: int | None = None, name: str = ""):
+        self._limit = limit if limit is not None else int(
+            os.getenv("LLM_PER_CLIENT_DAILY_CAP", "40"))
+        self._name = name
+        self._day: str | None = None
+        self._counts: dict[str, int] = {}
+        self._seen: dict[str, float] = {}
+
+    def _roll(self) -> None:
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        if today != self._day:
+            self._day, self._counts, self._seen = today, {}, {}
+
+    async def __call__(self, request: Request) -> None:
+        if self._limit <= 0:      # 0 disables
+            return
+        self._roll()
+        key = _client_ip(request)
+        used = self._counts.get(key, 0)
+        if used >= self._limit:
+            log.warning("%s per-client daily cap reached: %s used %d — refusing.",
+                        self._name, key, used)
+            raise HTTPException(
+                status_code=429,
+                detail=("You've reached today's limit for this endpoint. "
+                        "It resets at midnight UTC."),
+                headers={"Retry-After": "3600"},
+            )
+        if len(self._counts) >= self.MAX_CLIENTS and key not in self._counts:
+            oldest = min(self._seen, key=self._seen.get)
+            self._counts.pop(oldest, None)
+            self._seen.pop(oldest, None)
+        self._counts[key] = used + 1
+        self._seen[key] = time.monotonic()
+
+    def state(self) -> dict:
+        self._roll()
+        busiest = max(self._counts.values(), default=0)
+        return {"day": self._day, "clients": len(self._counts),
+                "limit": self._limit, "busiest_client": busiest}
+
+
 # Public reads/analysis.
 public_limit = RateLimiter(RATE_LIMIT_RPM, name="public")
 # Endpoints that call a paid model — per-IP AND a hard global ceiling.
@@ -227,6 +290,8 @@ llm_limit = RateLimiter(LLM_RPM, global_rpm=LLM_GLOBAL_RPM, name="llm")
 # ...and an absolute per-day cap on top. ~300 calls/day at ~1-2c each bounds
 # the worst case to a few dollars, not a drained account.
 llm_daily_budget = DailyBudget(int(os.getenv("LLM_DAILY_CAP", "300")), name="llm")
+# ...and a per-caller slice of it, so one client cannot take the whole day.
+llm_per_client = PerClientDailyBudget(name="llm")
 
 
 def cors_origins() -> list[str]:

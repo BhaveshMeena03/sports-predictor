@@ -14,6 +14,10 @@ primary_region = "iad"
   # Fly's edge proxy sets X-Forwarded-For; without this every request would
   # appear to come from the proxy IP and share one rate-limit bucket.
   TRUST_PROXY = "1"
+  # Per-caller slice of LLM_DAILY_CAP. Without it, one client at the per-minute
+  # limit drains the whole day's model budget in about an hour and everyone
+  # else is refused until UTC midnight.
+  LLM_PER_CLIENT_DAILY_CAP = "40"
   # The origin this API is reached at. Pinned rather than inferred, because
   # x402 puts the request URL into the payment challenge as the resource being
   # sold, and both the Host header and X-Forwarded-Proto are caller-supplied.
