@@ -117,14 +117,33 @@ export default function Landing() {
 
         {/* KPI row — live log numbers */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
-          <Kpi label="World Cup 2026, live" value={wc?.summary?.n != null ? String(wc.summary.n) : "—"} sub="matches predicted pre-kickoff" />
+          {/* "pre-kickoff" was wrong here: the World Cup rows were predicted when
+              the result was ingested, not before the match. Still walk-forward --
+              the model had not seen that match and ratings update only after
+              scoring -- but claiming a forward call the log cannot support is
+              worse than stating what it is. The API reports prelogged per row. */}
+          <Kpi
+            label="World Cup 2026, live"
+            value={wc?.summary?.n != null ? String(wc.summary.n) : "—"}
+            sub={wc?.summary?.prelogged ? "matches predicted pre-kickoff"
+                                        : "matches scored walk-forward"}
+          />
           <Kpi
             label="Winner picked"
             value={wc?.summary?.n ? `${Math.round((wc.summary.picked_correct / wc.summary.n) * 100)}%` : "—"}
             sub={wc?.summary?.n ? `${wc.summary.picked_correct} of ${wc.summary.n}, incl. the final` : ""}
           />
           <Kpi label="Prediction error, live" value={wc?.summary?.avg_brier != null ? wc.summary.avg_brier.toFixed(4) : "—"} sub="Brier score: 0 = perfect, 0.2222 = pure guessing" />
-          <Kpi label="Club season log" value={clubs && clubs.summary.n > 0 ? String(clubs.summary.n) : "starts Aug"} sub="5 leagues, same live scoring" />
+          {/* Standing predictions count before a result lands -- they are the
+              part that cannot be revised afterwards. */}
+          <Kpi
+            label="Club season log"
+            value={clubs && clubs.summary.n > 0 ? String(clubs.summary.n)
+                    : clubs?.pending ? `${clubs.pending} pending` : "starts Aug"}
+            sub={clubs?.pending && !clubs.summary.n
+                  ? "predictions logged, awaiting kickoff"
+                  : "5 leagues, predicted before kickoff"}
+          />
         </div>
       </section>
 
