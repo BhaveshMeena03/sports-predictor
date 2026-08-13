@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 const SITE = "https://predictor.lexthedev.com";
 const TITLE = "Sports Predictor — predictions scored in public";
 const IMAGE_ALT =
-  "Sports Predictor — 104 matches scored in public, 64.4% accuracy";
+  "Sports Predictor — 104 matches scored in public, plus predictions logged before kickoff";
 
 // This string is the first thing a reader sees in a link preview or a search
 // result. The old copy said "AI-powered sports betting analysis" — the exact
