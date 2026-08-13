@@ -11,8 +11,12 @@ import { API } from "./utils/api";
  * Public landing: the evidence, not the tools.
  *
  * Two kinds of proof, clearly labelled and never blurred:
- *  - the LIVE log (wc_match_log): predictions written before kickoff, scored
- *    after — a track record that cannot be produced retroactively;
+ *  - the WORLD CUP log (wc_match_log): walk-forward. Each probability came
+ *    from ratings that had not seen that match, and ratings only update once
+ *    the row is scored. Generated at ingest though, not before kickoff — the
+ *    API reports that per row as prelogged=0, and so does this page;
+ *  - the CLUB log, from 2026-27: written before the match is played and
+ *    filled in afterwards, so it cannot be revised in hindsight;
  *  - the WALK-FORWARD BACKTEST behind the reliability curves, labelled as such.
  */
 
@@ -213,7 +217,7 @@ export default function Landing() {
       <Card>
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-            The live log — written before kickoff, scored after
+            The prediction log — every match scored, misses included
           </h2>
           <span
             className="text-[10px] uppercase tracking-wider px-2 py-1 rounded"
@@ -223,8 +227,11 @@ export default function Landing() {
           </span>
         </div>
         <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
-          World Cup 2026, complete: every probability below was logged before the match and scored
-          when the result arrived. A backtest can be rerun until it flatters; this cannot.
+          World Cup 2026, complete. Every probability came from ratings that had not seen that
+          match, and those ratings only moved once the row was scored — nothing here is fitted to
+          its own result. The rows were written when the result was ingested rather than before
+          kickoff, which the log now records honestly. Club fixtures from 2026-27 are predicted in
+          advance and filled in after, so those cannot be revised at all.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>

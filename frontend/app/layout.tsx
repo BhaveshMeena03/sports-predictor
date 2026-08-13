@@ -23,9 +23,9 @@ const IMAGE_ALT =
 // claim every page on this site spends its footer disclaiming, and the wrong
 // first impression for anyone evaluating the project.
 const DESCRIPTION =
-  "A football prediction model that logs every forecast before kickoff and " +
-  "scores it in public — misses included. Machine-payable per call over " +
-  "x402 on Base. Informational only, not betting advice.";
+  "A football prediction model that scores every forecast in public — misses " +
+  "included — and states how each one was produced. Machine-payable per call " +
+  "over x402 on Base. Informational only, not betting advice.";
 
 // The card is served from /og.png — a plain file in public/, referenced
 // explicitly rather than through Next's app/opengraph-image convention.
