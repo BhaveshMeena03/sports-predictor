@@ -48,7 +48,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
-    url: SITE,
+    // No `url` on purpose. og:url pins X's cache to the canonical address, so
+    // once a bad card is cached, no ?v= buster can force a re-crawl — the
+    // crawler resolves back to the same key and serves the stale copy. That
+    // is exactly how this page ended up showing a grey card with a
+    // description we had already replaced. Same trap as rel=canonical.
     siteName: "Sports Predictor",
     type: "website",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: IMAGE_ALT }],
