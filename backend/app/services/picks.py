@@ -55,6 +55,9 @@ MAX_CONFIDENCE = 0.95   # nothing in football is 99%; the cap is a kindness
 # the alphabet, zero-width and right-to-left characters let someone render a
 # name identical to another player's.
 _NAME_OK = re.compile(r"^[a-z0-9_.\-]{2,32}$")
+# A verified wallet address is also a valid player id. It is longer than the
+# name limit and always lowercase by the time it reaches here.
+_ADDRESS_OK = re.compile(r"^0x[0-9a-f]{40}$")
 
 # Bounded per player so one script cannot fill the table. Well above a season
 # of real play: five leagues rarely exceed ~50 fixtures a week.
@@ -76,6 +79,8 @@ async def ensure_tables() -> None:
                 p_away      REAL NOT NULL,
                 submitted_at TEXT NOT NULL,
                 kickoff_utc  TEXT,
+                verified     INTEGER NOT NULL DEFAULT 0,
+                signature    TEXT,
                 correct     INTEGER,
                 brier       REAL,
                 PRIMARY KEY (player, league, date, home, away)
@@ -86,6 +91,18 @@ async def ensure_tables() -> None:
                          "ON user_picks(player)")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_picks_fixture "
                          "ON user_picks(league, date, home, away)")
+
+        # CREATE TABLE IF NOT EXISTS does nothing to a table that already
+        # exists, so new columns need adding explicitly. The picks table
+        # shipped before wallet signing did, and those rows are genuinely
+        # unverified -- defaulting to 0 records that rather than flattering it.
+        cur = await db.execute("PRAGMA table_info(user_picks)")
+        cols = {row[1] for row in await cur.fetchall()}
+        if "verified" not in cols:
+            await db.execute(
+                "ALTER TABLE user_picks ADD COLUMN verified INTEGER NOT NULL DEFAULT 0")
+        if "signature" not in cols:
+            await db.execute("ALTER TABLE user_picks ADD COLUMN signature TEXT")
         await db.commit()
 
 
@@ -98,6 +115,8 @@ def normalise_player(name: str) -> str:
     right-to-left marks.
     """
     folded = (name or "").strip().lower()
+    if _ADDRESS_OK.match(folded):
+        return folded
     if not _NAME_OK.match(folded):
         raise ValueError(
             "player must be 2-32 characters, using letters, digits, _ . or -")
@@ -127,7 +146,9 @@ def brier(probs: list[float], outcome_index: int) -> float:
 
 async def submit_pick(player: str, league: str, date: str, home: str, away: str,
                       pick: str, confidence: float,
-                      kickoff_utc: str | None = None) -> dict:
+                      kickoff_utc: str | None = None,
+                      verified: bool = False,
+                      signature: str | None = None) -> dict:
     """Record a pick, refusing anything at or after kickoff.
 
     Refusing late picks is the whole basis of the leaderboard, so the check
@@ -196,14 +217,15 @@ async def submit_pick(player: str, league: str, date: str, home: str, away: str,
         await db.execute(
             """INSERT INTO user_picks
                (player,league,date,home,away,pick,p_home,p_draw,p_away,
-                submitted_at,kickoff_utc)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                submitted_at,kickoff_utc,verified,signature)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (player, league, date, home, away, pick, *probs,
-             now.isoformat(), kickoff_utc))
+             now.isoformat(), kickoff_utc, 1 if verified else 0, signature))
         await db.commit()
 
     return {"player": player, "fixture": f"{home} v {away}", "date": date,
             "pick": pick, "probabilities": dict(zip(OUTCOMES, probs)),
+            "verified": bool(verified),
             "locked_at": kickoff_utc or f"{date} (end of day)"}
 
 
@@ -259,7 +281,8 @@ async def leaderboard(limit: int = 50, min_picks: int = 3) -> dict:
     await ensure_tables()
     async with db_connect(DB_PATH) as db:
         rows = await (await db.execute("""
-            SELECT player, COUNT(*) n, AVG(brier) avg_brier, SUM(correct) hits
+            SELECT player, COUNT(*) n, AVG(brier) avg_brier, SUM(correct) hits,
+                   MIN(verified) all_verified
             FROM user_picks WHERE brier IS NOT NULL
             GROUP BY player ORDER BY avg_brier ASC
         """)).fetchall()
@@ -275,10 +298,13 @@ async def leaderboard(limit: int = 50, min_picks: int = 3) -> dict:
         """)).fetchone()
 
     ranked, unranked = [], []
-    for player, n, avg_b, hits in rows:
+    for player, n, avg_b, hits, all_verified in rows:
         entry = {"player": player, "picks": n,
                  "avg_brier": round(avg_b, 4),
                  "correct": hits,
+                 # Every pick signed by the wallet that owns this row. A name
+                 # anyone could have typed is shown, but marked apart.
+                 "verified": bool(all_verified),
                  "accuracy": round(hits / n, 3) if n else None}
         (ranked if n >= min_picks else unranked).append(entry)
 

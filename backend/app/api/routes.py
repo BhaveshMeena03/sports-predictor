@@ -869,16 +869,62 @@ async def submit_pick(body: dict):
     missing = [k for k in required if not body.get(k)]
     if missing:
         raise HTTPException(400, f"missing: {', '.join(missing)}")
+    league, date = str(body["league"]), str(body["date"])
+    home, away = str(body["home"]), str(body["away"])
+    pick = str(body["pick"]).lower()
+    confidence = float(body.get("confidence", 0.5))
+
+    # A signature is optional but strictly better: it makes the prediction
+    # attributable to a wallet and unforgeable, including by us. Unsigned
+    # picks still play, and the leaderboard marks them apart.
+    verified, signature = False, None
+    player = str(body["player"])
+    if body.get("signature"):
+        from app.services import pick_auth
+        try:
+            player = pick_auth.verify(
+                address=str(body["player"]), signature=str(body["signature"]),
+                league=league, date=date, home=home, away=away, pick=pick,
+                confidence=confidence, issued=str(body.get("issued", "")))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        verified, signature = True, str(body["signature"])
+
     try:
         return await picks_svc.submit_pick(
-            player=str(body["player"]), league=str(body["league"]),
-            date=str(body["date"]),
-            home=str(body["home"]), away=str(body["away"]),
-            pick=str(body["pick"]).lower(),
-            confidence=float(body.get("confidence", 0.5)),
-            kickoff_utc=body.get("kickoff_utc"))
+            player=player, league=league, date=date,
+            home=home, away=away, pick=pick, confidence=confidence,
+            kickoff_utc=body.get("kickoff_utc"),
+            verified=verified, signature=signature)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/picks/message", dependencies=[Depends(public_limit)])
+async def pick_message(body: dict):
+    """The exact text to sign for a pick.
+
+    Served rather than built client-side so the wallet signs the same bytes
+    the server will verify. A mismatch here is the usual way signed-payload
+    schemes silently break."""
+    from datetime import datetime, timezone
+
+    from app.services import pick_auth
+
+    required = ("league", "date", "home", "away", "pick")
+    missing = [k for k in required if not body.get(k)]
+    if missing:
+        raise HTTPException(400, f"missing: {', '.join(missing)}")
+    issued = datetime.now(timezone.utc).isoformat()
+    return {
+        "message": pick_auth.build_message(
+            league=str(body["league"]), date=str(body["date"]),
+            home=str(body["home"]), away=str(body["away"]),
+            pick=str(body["pick"]).lower(),
+            confidence=float(body.get("confidence", 0.5)), issued=issued),
+        "issued": issued,
+        "expires_in_seconds": int(pick_auth.MAX_AGE.total_seconds()),
+    }
 
 
 @router.get("/picks/{player}", dependencies=[Depends(public_limit)])

@@ -21,6 +21,10 @@ scipy==1.12.0
 # ImportError, and payments silently switch OFF — the paid route starts
 # serving free with only a log line to show for it.
 x402[evm,fastapi,extensions]==2.16.0
+# Imported directly by app/services/pick_auth.py to verify signed predictions.
+# It arrives transitively via x402[evm], but a module we import by name should
+# be declared: dropping the [evm] extra later would break signing silently.
+eth-account>=0.13
 # Mainnet only: Coinbase's x402 facilitator rejects unauthenticated calls,
 # and this signs them. Testnet's facilitator is open and needs none of it.
 cdp-sdk>=1.0
