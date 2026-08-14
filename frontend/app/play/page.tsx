@@ -155,7 +155,7 @@ export default function Play() {
   const modelBrier = board?.model?.avg_brier ?? null;
 
   return (
-    <main className="ml-64 p-8 max-w-5xl">
+    <div className="space-y-6 animate-fade-in max-w-4xl">
       <p className="text-xs uppercase tracking-widest mb-2" style={{ color: "var(--text-muted)" }}>
         Free to play · no stake, no payout
       </p>
@@ -326,7 +326,7 @@ export default function Play() {
       <p className="text-xs mt-6" style={{ color: "var(--text-muted)" }}>
         No stake and no payout — this is a scoreboard, not a book. Informational only.
       </p>
-    </main>
+    </div>
   );
 }
 
