@@ -32,7 +32,7 @@ entrants.
 from __future__ import annotations
 
 import logging
-import time
+import re
 from datetime import datetime, timezone
 
 from app.core.database import DB_PATH
@@ -48,6 +48,17 @@ OUTCOMES = ("home", "draw", "away")
 # vector regardless, so scoring never has to re-derive anything.
 MIN_CONFIDENCE = 0.34   # below a third is not a pick, it is a different pick
 MAX_CONFIDENCE = 0.95   # nothing in football is 99%; the cap is a kindness
+
+# Player names are display strings on a public leaderboard, so they get the
+# treatment untrusted display strings need: a fixed alphabet, a length bound,
+# and case folding. Without folding, "Alice" and "alice" are two rows; without
+# the alphabet, zero-width and right-to-left characters let someone render a
+# name identical to another player's.
+_NAME_OK = re.compile(r"^[a-z0-9_.\-]{2,32}$")
+
+# Bounded per player so one script cannot fill the table. Well above a season
+# of real play: five leagues rarely exceed ~50 fixtures a week.
+MAX_PICKS_PER_PLAYER = 2000
 
 
 async def ensure_tables() -> None:
@@ -76,6 +87,21 @@ async def ensure_tables() -> None:
         await db.execute("CREATE INDEX IF NOT EXISTS idx_picks_fixture "
                          "ON user_picks(league, date, home, away)")
         await db.commit()
+
+
+def normalise_player(name: str) -> str:
+    """Fold and validate a display name, or refuse it.
+
+    Case-folded so one person is one row rather than one per capitalisation,
+    and restricted to a plain alphabet so nobody can register a name that
+    renders identically to someone else's using zero-width joiners or
+    right-to-left marks.
+    """
+    folded = (name or "").strip().lower()
+    if not _NAME_OK.match(folded):
+        raise ValueError(
+            "player must be 2-32 characters, using letters, digits, _ . or -")
+    return folded
 
 
 def vector_from(pick: str, confidence: float) -> list[float]:
@@ -108,6 +134,7 @@ async def submit_pick(player: str, league: str, date: str, home: str, away: str,
     lives here rather than in the route: any future caller gets it too.
     """
     await ensure_tables()
+    player = normalise_player(player)
     probs = vector_from(pick, confidence)
     now = datetime.now(timezone.utc)
 
@@ -132,6 +159,32 @@ async def submit_pick(player: str, league: str, date: str, home: str, away: str,
             raise ValueError("that fixture is in the past")
 
     async with db_connect(DB_PATH) as db:
+        # The gate that actually protects the leaderboard. Results are ingested
+        # the same day a match finishes, and a date comparison only refuses
+        # dates strictly before today -- so a player could read a result that
+        # landed this morning and submit a "prediction" for it this afternoon.
+        # The scorer joins on the fixture and does not care when the pick
+        # arrived, so it would have counted.
+        #
+        # Asking the result table directly is airtight regardless of dates,
+        # timezones or how late the feed is.
+        cur = await db.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='club_match_log'")
+        if await cur.fetchone() is not None:
+            cur = await db.execute(
+                """SELECT home_goals FROM club_match_log
+                   WHERE league=? AND date=? AND home=? AND away=?""",
+                (league, date, home, away))
+            row = await cur.fetchone()
+            if row is not None and row[0] is not None:
+                raise ValueError("that fixture has already been played")
+
+        cur = await db.execute(
+            "SELECT COUNT(*) FROM user_picks WHERE player=?", (player,))
+        (count,) = await cur.fetchone()
+        if count >= MAX_PICKS_PER_PLAYER:
+            raise ValueError("you have reached the maximum number of picks")
+
         cur = await db.execute(
             """SELECT brier FROM user_picks
                WHERE player=? AND league=? AND date=? AND home=? AND away=?""",

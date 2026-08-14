@@ -206,3 +206,117 @@ class TestScoring:
         lb = asyncio.run(leaderboard(min_picks=3))
         assert lb["ranked"] == []
         assert lb["unranked"] == 1
+
+
+class TestResultPeeking:
+    """The exploit that would make the whole leaderboard worthless.
+
+    Results are ingested the same day a match finishes, and the original date
+    check only refused dates strictly before today. So a player could read a
+    result that landed this morning and submit a "prediction" for it this
+    afternoon: the scorer joins on (league, date, home, away) and does not care
+    when the pick arrived.
+    """
+
+    def _finished_today(self, db):
+        import sqlite3
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        con = sqlite3.connect(db)
+        con.execute("""CREATE TABLE IF NOT EXISTS club_match_log (
+            league TEXT, date TEXT, home TEXT, away TEXT,
+            home_goals INTEGER, away_goals INTEGER,
+            p_home REAL, p_draw REAL, p_away REAL,
+            picked TEXT, correct INTEGER, brier REAL, prelogged INTEGER DEFAULT 0,
+            PRIMARY KEY (league, date, home, away))""")
+        con.execute("""INSERT OR REPLACE INTO club_match_log
+            (league,date,home,away,home_goals,away_goals,p_home,p_draw,p_away,
+             picked,correct,brier,prelogged)
+            VALUES ('la_liga',?,'Sevilla','Rayo',3,0,0.4,0.3,0.3,'Sevilla',1,0.1,1)""",
+                    (today,))
+        con.commit(); con.close()
+        return today
+
+    def test_cannot_pick_a_fixture_that_already_has_a_result(self, db):
+        from app.services.picks import submit_pick
+
+        today = self._finished_today(db)
+        with pytest.raises(ValueError):
+            asyncio.run(submit_pick("cheat", "la_liga", today, "Sevilla", "Rayo",
+                                    "home", 0.95))
+
+    def test_a_fixture_still_awaiting_its_result_is_pickable(self, db):
+        """The legitimate case must keep working: the model has a standing
+        prediction, no result yet."""
+        import sqlite3
+        from datetime import datetime, timedelta, timezone
+        from app.services.picks import submit_pick
+
+        soon = (datetime.now(timezone.utc) + timedelta(days=2)).strftime("%Y-%m-%d")
+        con = sqlite3.connect(db)
+        con.execute("""CREATE TABLE IF NOT EXISTS club_match_log (
+            league TEXT, date TEXT, home TEXT, away TEXT,
+            home_goals INTEGER, away_goals INTEGER,
+            p_home REAL, p_draw REAL, p_away REAL,
+            picked TEXT, correct INTEGER, brier REAL, prelogged INTEGER DEFAULT 0,
+            PRIMARY KEY (league, date, home, away))""")
+        con.execute("""INSERT INTO club_match_log
+            (league,date,home,away,home_goals,away_goals,p_home,p_draw,p_away,
+             picked,correct,brier,prelogged)
+            VALUES ('la_liga',?,'Alaves','Getafe',NULL,NULL,0.41,0.25,0.34,
+                    'Alaves',NULL,NULL,1)""", (soon,))
+        con.commit(); con.close()
+
+        out = asyncio.run(submit_pick("alice", "la_liga", soon, "Alaves",
+                                      "Getafe", "home", 0.6))
+        assert out["pick"] == "home"
+
+
+class TestPlayerNames:
+    """A public leaderboard renders these, so they are untrusted display text."""
+
+    def test_case_is_folded_so_one_person_is_one_row(self, db):
+        from app.services.picks import submit_pick
+
+        asyncio.run(submit_pick("Alice", "la_liga", _tomorrow(), "A", "B",
+                                "home", 0.6, kickoff_utc=_future()))
+        with pytest.raises(ValueError, match="already picked"):
+            asyncio.run(submit_pick("ALICE", "la_liga", _tomorrow(), "A", "B",
+                                    "away", 0.6, kickoff_utc=_future()))
+
+    @pytest.mark.parametrize("bad", [
+        "",                      # blank
+        "a",                     # too short
+        "x" * 33,                # too long
+        "alice​bob",        # zero-width joiner: renders as another name
+        "alice‮bob",        # right-to-left override
+        "<script>alert(1)</",    # markup
+        "alice bob",             # spaces allow lookalike padding
+    ])
+    def test_dangerous_names_are_refused(self, bad):
+        from app.services.picks import normalise_player
+
+        with pytest.raises(ValueError):
+            normalise_player(bad)
+
+    def test_ordinary_names_are_accepted(self):
+        from app.services.picks import normalise_player
+
+        for ok in ("alice", "bob_99", "lex.dev", "a-b"):
+            assert normalise_player(ok) == ok
+
+
+class TestBounds:
+    def test_a_player_cannot_fill_the_table(self, db, monkeypatch):
+        import app.services.picks as picks
+        from app.services.picks import submit_pick
+
+        monkeypatch.setattr(picks, "MAX_PICKS_PER_PLAYER", 3)
+        for i in range(3):
+            asyncio.run(submit_pick("spammer", "la_liga", _tomorrow(),
+                                    f"H{i}", f"A{i}", "home", 0.6,
+                                    kickoff_utc=_future()))
+        with pytest.raises(ValueError, match="maximum number of picks"):
+            asyncio.run(submit_pick("spammer", "la_liga", _tomorrow(),
+                                    "H9", "A9", "home", 0.6,
+                                    kickoff_utc=_future()))

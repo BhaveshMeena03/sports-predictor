@@ -869,12 +869,10 @@ async def submit_pick(body: dict):
     missing = [k for k in required if not body.get(k)]
     if missing:
         raise HTTPException(400, f"missing: {', '.join(missing)}")
-    player = str(body["player"]).strip()[:64]
-    if not player:
-        raise HTTPException(400, "player must not be blank")
     try:
         return await picks_svc.submit_pick(
-            player=player, league=str(body["league"]), date=str(body["date"]),
+            player=str(body["player"]), league=str(body["league"]),
+            date=str(body["date"]),
             home=str(body["home"]), away=str(body["away"]),
             pick=str(body["pick"]).lower(),
             confidence=float(body.get("confidence", 0.5)),
@@ -884,7 +882,7 @@ async def submit_pick(body: dict):
 
 
 @router.get("/picks/{player}", dependencies=[Depends(public_limit)])
-async def player_picks(player: str):
+async def player_picks(player: str, limit: int = 200):
     """One player's picks, scored and pending."""
     import aiosqlite
     from app.core.database import DB_PATH
@@ -894,9 +892,11 @@ async def player_picks(player: str):
     await picks_svc.ensure_tables()
     async with db_connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        # Bounded: an unbounded read is a free amplification vector, and the
+        # summary below is computed over what is returned so the two agree.
         rows = await (await db.execute(
-            "SELECT * FROM user_picks WHERE player=? ORDER BY date DESC",
-            (player[:64],))).fetchall()
+            "SELECT * FROM user_picks WHERE player=? ORDER BY date DESC LIMIT ?",
+            (player.strip().lower()[:32], min(max(limit, 1), 500)))).fetchall()
     out = [dict(r) for r in rows]
     done = [r for r in out if r["brier"] is not None]
     return {
