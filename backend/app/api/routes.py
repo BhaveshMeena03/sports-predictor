@@ -854,6 +854,81 @@ async def clubs_prelog(days_ahead: int = 7):
     return await prelog_upcoming_clubs(days_ahead=days_ahead)
 
 
+# ─── Beat the Model: free, Brier-scored public picks ───────────────────
+
+@router.post("/picks", dependencies=[Depends(public_limit)])
+async def submit_pick(body: dict):
+    """Record a pick for an upcoming fixture. Free, no stake, no payout.
+
+    Refused at or after kickoff, and refused if you already picked this
+    fixture: a leaderboard where standing picks can be revised proves
+    nothing."""
+    from app.services import picks as picks_svc
+
+    required = ("player", "league", "date", "home", "away", "pick")
+    missing = [k for k in required if not body.get(k)]
+    if missing:
+        raise HTTPException(400, f"missing: {', '.join(missing)}")
+    player = str(body["player"]).strip()[:64]
+    if not player:
+        raise HTTPException(400, "player must not be blank")
+    try:
+        return await picks_svc.submit_pick(
+            player=player, league=str(body["league"]), date=str(body["date"]),
+            home=str(body["home"]), away=str(body["away"]),
+            pick=str(body["pick"]).lower(),
+            confidence=float(body.get("confidence", 0.5)),
+            kickoff_utc=body.get("kickoff_utc"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/picks/{player}", dependencies=[Depends(public_limit)])
+async def player_picks(player: str):
+    """One player's picks, scored and pending."""
+    import aiosqlite
+    from app.core.database import DB_PATH
+    from app.core.database import connect as db_connect
+    from app.services import picks as picks_svc
+
+    await picks_svc.ensure_tables()
+    async with db_connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await (await db.execute(
+            "SELECT * FROM user_picks WHERE player=? ORDER BY date DESC",
+            (player[:64],))).fetchall()
+    out = [dict(r) for r in rows]
+    done = [r for r in out if r["brier"] is not None]
+    return {
+        "player": player,
+        "picks": out,
+        "summary": {
+            "total": len(out), "scored": len(done),
+            "pending": len(out) - len(done),
+            "avg_brier": round(sum(r["brier"] for r in done) / len(done), 4)
+            if done else None,
+            "correct": sum(1 for r in done if r["correct"]),
+        },
+    }
+
+
+@router.get("/leaderboard", dependencies=[Depends(public_limit)])
+async def picks_leaderboard(limit: int = 50, min_picks: int = 3):
+    """Standings by average Brier, against the model on the same fixtures."""
+    from app.services import picks as picks_svc
+
+    return await picks_svc.leaderboard(limit=min(limit, 200), min_picks=min_picks)
+
+
+@router.post("/picks/score", dependencies=ADMIN)
+async def score_picks():
+    """Score picks whose fixtures now have results. The scheduler does this
+    nightly; exposed for backfills."""
+    from app.services import picks as picks_svc
+
+    return await picks_svc.score_finished_picks()
+
+
 @router.get("/worldcup/predict2")
 async def worldcup_predict2(home: str, away: str, neutral: bool = True):
     """v2 draw-aware prediction: Elo->Poisson goals bridge + calibration layer

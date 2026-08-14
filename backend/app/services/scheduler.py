@@ -95,6 +95,16 @@ async def refresh_models() -> dict:
         log.warning("scheduled club prelog failed: %s", e)
         summary["steps"]["clubs_prelog"] = f"error: {e}"
 
+    # 3c) Score public picks against the results just ingested. After the
+    #     club update so a fixture finished today is scored the same night,
+    #     and using each pick's stored vector rather than anything fresh.
+    try:
+        from app.services.picks import score_finished_picks
+        summary["steps"]["picks_scored"] = await score_finished_picks()
+    except Exception as e:
+        log.warning("scheduled pick scoring failed: %s", e)
+        summary["steps"]["picks_scored"] = f"error: {e}"
+
     # 4) Calibration keeps learning: once a league has enough LIVE scored
     #    matches, refit its alpha from the live log (raw vectors — fitting on
     #    served probabilities would compose with the alpha already applied).
