@@ -71,8 +71,25 @@ class TestConfiguration:
 
 class TestGating:
     def test_slate_is_free_when_unconfigured(self, monkeypatch):
+        """No X402_PAY_TO means the slate is served, not paywalled.
+
+        upcoming_fixtures is stubbed because it fans out to ESPN across five
+        leagues and 31 days. Left live, this single test was 19.9s of a 20.8s
+        suite, and on one run it hung long enough to take the whole thing to
+        15 minutes -- a unit test that fails when someone else's API is slow
+        tells you nothing about this code.
+        """
         from fastapi.testclient import TestClient
         reload_payments(monkeypatch)
+
+        import app.services.ask as ask
+
+        async def _no_network(days: int = 30):
+            return [{"league": "premier_league", "league_label": "Premier League",
+                     "date": "2099-01-01", "home": "A", "away": "B"}]
+
+        monkeypatch.setattr(ask, "upcoming_fixtures", _no_network)
+
         import main
         importlib.reload(main)
         with TestClient(main.app) as c:
